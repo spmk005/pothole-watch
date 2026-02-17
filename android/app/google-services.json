@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "71841574547",
+    "project_id": "potholedemo-dbbe0",
+    "storage_bucket": "potholedemo-dbbe0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:71841574547:android:51d3b05f904b7ea811e766",
+        "android_client_info": {
+          "package_name": "com.example.pothole_watch"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC1-pU-x8gZ4higVk10oejrn7AcD1P8dJc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

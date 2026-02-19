@@ -1,9 +1,9 @@
 import 'dart:async'; // For Timer
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:ultralytics_yolo/ultralytics_yolo.dart'; // 1. Added YOLO package
 
 class LiveDetectionPage extends StatefulWidget {
   const LiveDetectionPage({super.key});
@@ -13,42 +13,25 @@ class LiveDetectionPage extends StatefulWidget {
 }
 
 class _LiveDetectionPageState extends State<LiveDetectionPage> {
-  CameraController? _cameraController;
+  // We completely removed CameraController. YOLOView handles it now!
   final MapController _miniMapController = MapController();
 
-  // Real GPS Stream
+  // Real GPS Stream & Simulation
   StreamSubscription<Position>? _positionStreamSubscription;
-
-  // Fake Simulation Timer
   Timer? _simulationTimer;
   bool _isSimulating = false;
 
   LatLng _currentLocation = const LatLng(11.2588, 75.7804); // Default
-  bool _isCameraInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    _initializeCamera();
-    _startNavigationMode(); // Start real GPS (won't move on laptop)
+    _startNavigationMode(); 
   }
 
-  Future<void> _initializeCamera() async {
-    final cameras = await availableCameras();
-    if (cameras.isNotEmpty) {
-      _cameraController = CameraController(
-        cameras[0],
-        ResolutionPreset.medium,
-        enableAudio: false,
-      );
-      await _cameraController!.initialize();
-      if (!mounted) return;
-      setState(() => _isCameraInitialized = true);
-    }
-  }
-
-  // --- 1. REAL NAVIGATION (For Mobile) ---
+  // --- 1. REAL NAVIGATION ---
   void _startNavigationMode() async {
+    // Note: Ensure you request location permissions before this runs in production!
     _positionStreamSubscription =
         Geolocator.getPositionStream(
           locationSettings: const LocationSettings(
@@ -56,7 +39,6 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
             distanceFilter: 2,
           ),
         ).listen((Position position) {
-          // Only use real GPS if NOT simulating
           if (!_isSimulating) {
             _updateMapToFollowUser(
               LatLng(position.latitude, position.longitude),
@@ -65,17 +47,14 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
         });
   }
 
-  // --- 2. FAKE NAVIGATION (For Chrome Testing) ---
+  // --- 2. FAKE NAVIGATION (Simulation) ---
   void _toggleSimulation() {
     if (_isSimulating) {
       _simulationTimer?.cancel();
       setState(() => _isSimulating = false);
     } else {
       setState(() => _isSimulating = true);
-      // Move 0.0001 degrees every 200ms (Simulates driving fast)
-      _simulationTimer = Timer.periodic(const Duration(milliseconds: 200), (
-        timer,
-      ) {
+      _simulationTimer = Timer.periodic(const Duration(milliseconds: 200), (timer) {
         double newLat = _currentLocation.latitude + 0.00005;
         double newLng = _currentLocation.longitude + 0.00005;
         _updateMapToFollowUser(LatLng(newLat, newLng));
@@ -83,24 +62,17 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
     }
   }
 
-  // --- SHARED: Update Map & Marker ---
+  // --- SHARED: Update Map ---
   void _updateMapToFollowUser(LatLng newPos) {
     if (!mounted) return;
-
     setState(() {
       _currentLocation = newPos;
     });
-
-    // FORCE MAP TO MOVE
-    _miniMapController.move(
-      _currentLocation,
-      17.0, // Keep zoom tight for navigation feel
-    );
+    _miniMapController.move(_currentLocation, 17.0);
   }
 
   @override
   void dispose() {
-    _cameraController?.dispose();
     _miniMapController.dispose();
     _positionStreamSubscription?.cancel();
     _simulationTimer?.cancel();
@@ -109,20 +81,33 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isCameraInitialized) {
-      return const Scaffold(
-        backgroundColor: Colors.black,
-        body: Center(child: CircularProgressIndicator(color: Colors.red)),
-      );
-    }
-
     return Scaffold(
       body: Stack(
         children: [
-          // 1. Camera Feed
-          SizedBox.expand(child: CameraPreview(_cameraController!)),
-
-          // 2. LIVE Indicator
+          // 1. THE BRAIN: YOLO Camera Feed replacing the standard CameraPreview
+// 1. THE BRAIN: YOLO Camera Feed
+// 1. THE BRAIN: YOLO Camera Feed
+          SizedBox.expand(
+            child: YOLOView(
+              modelPath: 'yolov26_best_float32.tflite', 
+              task: YOLOTask.obb,
+              
+              // 🔴 THE MAGIC SWITCH: This completely hides all bounding boxes and labels
+              showOverlays: false, 
+              
+              onResult: (results) {
+                // 1. THE BOUNCER: Filter out the weak 66% detections
+                final strictPotholes = results.where((detection) {
+                  return detection.confidence >= 0.8; 
+                }).toList();
+                
+                // 2. THE ALERT: Only fires when it is 80%+ sure
+                if (strictPotholes.isNotEmpty) {
+                  debugPrint('🚨 POTHOLE DETECTED (High Confidence!) at Lat: ${_currentLocation.latitude}, Lng: ${_currentLocation.longitude}');
+                }
+              },
+            ),
+          ),          // 2. LIVE Indicator
           Positioned(
             top: 50,
             left: 20,
@@ -132,27 +117,17 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
                 color: Colors.red.withOpacity(0.9),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Row(
-                children: const [
-                  Icon(
-                    Icons.fiber_manual_record,
-                    color: Colors.white,
-                    size: 14,
-                  ),
+              child: const Row(
+                children: [
+                  Icon(Icons.fiber_manual_record, color: Colors.white, size: 14),
                   SizedBox(width: 8),
-                  Text(
-                    "LIVE REC",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  Text("LIVE REC", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
           ),
 
-          // 3. Mini Map (Bottom Right)
+          // 3. Mini Map
           Positioned(
             bottom: 30,
             right: 20,
@@ -162,12 +137,7 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
               decoration: BoxDecoration(
                 border: Border.all(color: Colors.white, width: 3),
                 borderRadius: BorderRadius.circular(15),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.5),
-                    blurRadius: 10,
-                  ),
-                ],
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10)],
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
@@ -176,15 +146,10 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
                   options: MapOptions(
                     initialCenter: _currentLocation,
                     initialZoom: 17.0,
-                    interactionOptions: const InteractionOptions(
-                      flags: InteractiveFlag.none, // Lock map
-                    ),
+                    interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
                   ),
                   children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    ),
+                    TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
                     MarkerLayer(
                       markers: [
                         Marker(
@@ -196,15 +161,9 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
                               color: Colors.blueAccent,
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white, width: 3),
-                              boxShadow: [
-                                BoxShadow(color: Colors.black26, blurRadius: 4),
-                              ],
+                              boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
                             ),
-                            child: const Icon(
-                              Icons.navigation,
-                              color: Colors.white,
-                              size: 14,
-                            ),
+                            child: const Icon(Icons.navigation, color: Colors.white, size: 14),
                           ),
                         ),
                       ],
@@ -215,7 +174,7 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
             ),
           ),
 
-          // 4. "TEST DRIVE" BUTTON (Bottom Left - For Chrome Testing Only)
+          // 4. "TEST DRIVE" BUTTON
           Positioned(
             bottom: 30,
             left: 20,

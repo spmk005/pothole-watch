@@ -43,3 +43,4 @@ flutter:
   # Registering your custom YOLO model so it's bundled into the APK.
   #assets:
   #  - assets/yolov26_best_float16.tflite
+  #  - assets/yolov26_best_float32.tflite

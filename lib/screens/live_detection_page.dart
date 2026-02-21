@@ -1,9 +1,10 @@
-import 'dart:async'; // For Timer
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:ultralytics_yolo/ultralytics_yolo.dart'; // 1. Added YOLO package
+import 'package:ultralytics_yolo/ultralytics_yolo.dart';
+import 'package:ultralytics_yolo/widgets/yolo_controller.dart';
 
 class LiveDetectionPage extends StatefulWidget {
   const LiveDetectionPage({super.key});
@@ -13,25 +14,36 @@ class LiveDetectionPage extends StatefulWidget {
 }
 
 class _LiveDetectionPageState extends State<LiveDetectionPage> {
-  // We completely removed CameraController. YOLOView handles it now!
+  // --- Map & GPS ---
   final MapController _miniMapController = MapController();
-
-  // Real GPS Stream & Simulation
   StreamSubscription<Position>? _positionStreamSubscription;
   Timer? _simulationTimer;
   bool _isSimulating = false;
+  LatLng _currentLocation = const LatLng(11.2588, 75.7804);
 
-  LatLng _currentLocation = const LatLng(11.2588, 75.7804); // Default
+  // --- YOLO controller (enforces thresholds on overlay rendering) ---
+  final YOLOViewController _yoloController = YOLOViewController();
+
+  // --- Detection state (updated by YOLOView.onResult) ---
+  int _potholeCount = 0;
 
   @override
   void initState() {
     super.initState();
-    _startNavigationMode(); 
+    _startNavigationMode();
+    // Enforce thresholds via controller — this overrides the widget prop
+    // and actually controls what the overlay renderer draws.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _yoloController.setThresholds(
+        confidenceThreshold: 0.86,
+        iouThreshold: 0.30,
+        numItemsThreshold: 10,
+      );
+    });
   }
 
-  // --- 1. REAL NAVIGATION ---
-  void _startNavigationMode() async {
-    // Note: Ensure you request location permissions before this runs in production!
+  // ── GPS ─────────────────────────────────────────────────────────────────────
+  void _startNavigationMode() {
     _positionStreamSubscription =
         Geolocator.getPositionStream(
           locationSettings: const LocationSettings(
@@ -47,87 +59,128 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
         });
   }
 
-  // --- 2. FAKE NAVIGATION (Simulation) ---
   void _toggleSimulation() {
     if (_isSimulating) {
       _simulationTimer?.cancel();
       setState(() => _isSimulating = false);
     } else {
       setState(() => _isSimulating = true);
-      _simulationTimer = Timer.periodic(const Duration(milliseconds: 200), (timer) {
-        double newLat = _currentLocation.latitude + 0.00005;
-        double newLng = _currentLocation.longitude + 0.00005;
-        _updateMapToFollowUser(LatLng(newLat, newLng));
+      _simulationTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+        _updateMapToFollowUser(
+          LatLng(
+            _currentLocation.latitude + 0.00005,
+            _currentLocation.longitude + 0.00005,
+          ),
+        );
       });
     }
   }
 
-  // --- SHARED: Update Map ---
   void _updateMapToFollowUser(LatLng newPos) {
     if (!mounted) return;
-    setState(() {
-      _currentLocation = newPos;
-    });
+    setState(() => _currentLocation = newPos);
     _miniMapController.move(_currentLocation, 17.0);
   }
 
   @override
   void dispose() {
-    _miniMapController.dispose();
-    _positionStreamSubscription?.cancel();
     _simulationTimer?.cancel();
+    _positionStreamSubscription?.cancel();
+    _miniMapController.dispose();
     super.dispose();
   }
 
+  // ── UI ───────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
-          // 1. THE BRAIN: YOLO Camera Feed replacing the standard CameraPreview
-// 1. THE BRAIN: YOLO Camera Feed
-// 1. THE BRAIN: YOLO Camera Feed
-          SizedBox.expand(
-            child: YOLOView(
-              modelPath: 'yolov26_best_float32.tflite', 
-              task: YOLOTask.obb,
-              
-              // 🔴 THE MAGIC SWITCH: This completely hides all bounding boxes and labels
-              showOverlays: false, 
-              
-              onResult: (results) {
-                // 1. THE BOUNCER: Filter out the weak 66% detections
-                final strictPotholes = results.where((detection) {
-                  return detection.confidence >= 0.8; 
-                }).toList();
-                
-                // 2. THE ALERT: Only fires when it is 80%+ sure
-                if (strictPotholes.isNotEmpty) {
-                  debugPrint('🚨 POTHOLE DETECTED (High Confidence!) at Lat: ${_currentLocation.latitude}, Lng: ${_currentLocation.longitude}');
-                }
-              },
-            ),
-          ),          // 2. LIVE Indicator
+          // 1. YOLOView — handles camera, inference, and bounding boxes natively
+          YOLOView(
+            modelPath: 'yolov26_best_float32.tflite',
+            task: YOLOTask.obb,
+            controller: _yoloController,
+            showOverlays: true,
+            confidenceThreshold: 0.86,
+            iouThreshold: 0.30,
+            onResult: (results) {
+              final potholes = results
+                  .where((d) => d.confidence > 0.85)
+                  .toList();
+
+              if (potholes.isNotEmpty) {
+                debugPrint(
+                  '🚨 ${potholes.length} pothole(s) at '
+                  'Lat: ${_currentLocation.latitude}, '
+                  'Lng: ${_currentLocation.longitude}',
+                );
+              }
+
+              if (mounted) {
+                setState(() => _potholeCount = potholes.length);
+              }
+            },
+          ),
+
+          // 2. LIVE indicator (top left)
           Positioned(
             top: 50,
             left: 20,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.9),
+                color: Colors.red.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.fiber_manual_record, color: Colors.white, size: 14),
+                  Icon(
+                    Icons.fiber_manual_record,
+                    color: Colors.white,
+                    size: 14,
+                  ),
                   SizedBox(width: 8),
-                  Text("LIVE REC", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  Text(
+                    'LIVE REC',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
 
-          // 3. Mini Map
+          // 3. Pothole count badge (top centre) — only shown when detecting
+          if (_potholeCount > 0)
+            Positioned(
+              top: 50,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.deepOrange.withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '🚧 $_potholeCount pothole${_potholeCount > 1 ? 's' : ''} detected',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // 4. Mini Map (bottom right)
           Positioned(
             bottom: 30,
             right: 20,
@@ -137,7 +190,12 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
               decoration: BoxDecoration(
                 border: Border.all(color: Colors.white, width: 3),
                 borderRadius: BorderRadius.circular(15),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10)],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    blurRadius: 10,
+                  ),
+                ],
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
@@ -146,10 +204,15 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
                   options: MapOptions(
                     initialCenter: _currentLocation,
                     initialZoom: 17.0,
-                    interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
+                    interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.none,
+                    ),
                   ),
                   children: [
-                    TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
+                    TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    ),
                     MarkerLayer(
                       markers: [
                         Marker(
@@ -161,9 +224,15 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
                               color: Colors.blueAccent,
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white, width: 3),
-                              boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                              boxShadow: const [
+                                BoxShadow(color: Colors.black26, blurRadius: 4),
+                              ],
                             ),
-                            child: const Icon(Icons.navigation, color: Colors.white, size: 14),
+                            child: const Icon(
+                              Icons.navigation,
+                              color: Colors.white,
+                              size: 14,
+                            ),
                           ),
                         ),
                       ],
@@ -174,7 +243,7 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
             ),
           ),
 
-          // 4. "TEST DRIVE" BUTTON
+          // 5. Test Drive simulation button (bottom left)
           Positioned(
             bottom: 30,
             left: 20,
@@ -184,11 +253,11 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
               ),
               onPressed: _toggleSimulation,
               icon: Icon(_isSimulating ? Icons.stop : Icons.play_arrow),
-              label: Text(_isSimulating ? "Stop Sim" : "Test Drive"),
+              label: Text(_isSimulating ? 'Stop Sim' : 'Test Drive'),
             ),
           ),
 
-          // 5. Close Button
+          // 6. Close button (top right)
           Positioned(
             top: 50,
             right: 20,

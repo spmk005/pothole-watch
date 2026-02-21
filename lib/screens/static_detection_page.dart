@@ -8,14 +8,15 @@ class StaticImageDetectionPage extends StatefulWidget {
   const StaticImageDetectionPage({super.key});
 
   @override
-  State<StaticImageDetectionPage> createState() => _StaticImageDetectionPageState();
+  State<StaticImageDetectionPage> createState() =>
+      _StaticImageDetectionPageState();
 }
 
 class _StaticImageDetectionPageState extends State<StaticImageDetectionPage> {
   final ImagePicker _picker = ImagePicker();
   Uint8List? _imageBytes;
   bool _isProcessing = false;
-  
+
   // The YOLO brain for static images
   YOLO? _yolo;
   YOLODetectionResults? _detectionResults;
@@ -26,11 +27,10 @@ class _StaticImageDetectionPageState extends State<StaticImageDetectionPage> {
     _initModel();
   }
 
-  // 1. Boot up the AI in the background
   Future<void> _initModel() async {
     _yolo = YOLO(
       modelPath: 'yolov26_best_float32.tflite', // Your model
-      task: YOLOTask.obb,                              // OBB Task
+      task: YOLOTask.obb, // OBB Task
     );
     await _yolo!.loadModel();
     debugPrint("✅ YOLO Model Loaded for Static Images!");
@@ -42,7 +42,7 @@ class _StaticImageDetectionPageState extends State<StaticImageDetectionPage> {
     if (pickedFile == null) return;
 
     final bytes = await pickedFile.readAsBytes();
-    
+
     setState(() {
       _imageBytes = bytes;
       _isProcessing = true;
@@ -52,16 +52,18 @@ class _StaticImageDetectionPageState extends State<StaticImageDetectionPage> {
     if (_yolo != null) {
       // Run the image through the AI
       final map = await _yolo!.predict(
-        bytes, 
+        bytes,
         confidenceThreshold: 0.8, // Lowered to 10% so it's not shy
       );
-      
+
       setState(() {
         _detectionResults = YOLODetectionResults.fromMap(map);
         _isProcessing = false;
       });
-      
-      debugPrint('🛑 AI Finished! Potholes found: ${_detectionResults?.detections.length}');
+
+      debugPrint(
+        '🛑 AI Finished! Potholes found: ${_detectionResults?.detections.length}',
+      );
     }
   }
 
@@ -70,7 +72,10 @@ class _StaticImageDetectionPageState extends State<StaticImageDetectionPage> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Analyze Photo', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Analyze Photo',
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: Colors.black87,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -80,22 +85,29 @@ class _StaticImageDetectionPageState extends State<StaticImageDetectionPage> {
           Expanded(
             child: Center(
               child: _imageBytes == null
-                  ? const Text('Take a photo of a pothole', style: TextStyle(color: Colors.white70, fontSize: 18))
+                  ? const Text(
+                      'Take a photo of a pothole',
+                      style: TextStyle(color: Colors.white70, fontSize: 18),
+                    )
                   : Stack(
                       alignment: Alignment.center,
                       children: [
                         // The raw image
                         Image.memory(_imageBytes!, fit: BoxFit.contain),
-                        
+
                         // The painted OBB boxes automatically drawn by the package
                         if (_detectionResults != null)
                           Positioned.fill(
-                            child: YOLOOverlay(detections: _detectionResults!.detections),
+                            child: YOLOOverlay(
+                              detections: _detectionResults!.detections,
+                            ),
                           ),
-                          
+
                         // Loading spinner
                         if (_isProcessing)
-                          const CircularProgressIndicator(color: Colors.redAccent),
+                          const CircularProgressIndicator(
+                            color: Colors.redAccent,
+                          ),
                       ],
                     ),
             ),
@@ -106,23 +118,39 @@ class _StaticImageDetectionPageState extends State<StaticImageDetectionPage> {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.grey[900],
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
             ),
             child: SafeArea(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.white24),
-                    onPressed: _isProcessing ? null : () => _pickAndDetectImage(ImageSource.camera),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white24,
+                    ),
+                    onPressed: _isProcessing
+                        ? null
+                        : () => _pickAndDetectImage(ImageSource.camera),
                     icon: const Icon(Icons.camera_alt, color: Colors.white),
-                    label: const Text("Camera", style: TextStyle(color: Colors.white)),
+                    label: const Text(
+                      "Camera",
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
                   ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                    onPressed: _isProcessing ? null : () => _pickAndDetectImage(ImageSource.gallery),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent,
+                    ),
+                    onPressed: _isProcessing
+                        ? null
+                        : () => _pickAndDetectImage(ImageSource.gallery),
                     icon: const Icon(Icons.photo_library, color: Colors.white),
-                    label: const Text("Gallery", style: TextStyle(color: Colors.white)),
+                    label: const Text(
+                      "Gallery",
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
                 ],
               ),

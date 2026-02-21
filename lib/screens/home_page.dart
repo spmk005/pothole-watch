@@ -11,6 +11,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../models/pothole.dart';
 import '../screens/login_page.dart';
 import 'live_detection_page.dart'; // <--- MAKE SURE THIS FILE EXISTS
+import 'image_detection_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -365,7 +366,43 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(width: 10),
 
-          // 2. PHOTO BUTTON (EXISTING)
+          // 2. IMAGE REC BUTTON (NEW)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueAccent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                elevation: 0,
+              ),
+              icon: const Icon(
+                Icons.image_search,
+                color: Colors.white,
+                size: 18,
+              ),
+              label: const Text(
+                "VERIFY",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ImageDetectionPage(),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 10),
+
+          // 3. PHOTO BUTTON (EXISTING)
           Padding(
             padding: const EdgeInsets.only(right: 16.0, top: 8, bottom: 8),
             child: ElevatedButton.icon(

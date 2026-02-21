@@ -6,12 +6,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:pothole_watch/screens/cameradetectionscreen.dart';
 
 // --- IMPORTS FOR YOUR APP ---
 import '../models/pothole.dart';
 import '../screens/login_page.dart';
-import 'live_detection_page.dart'; // <--- MAKE SURE THIS FILE EXISTS
-import 'image_detection_page.dart';
+import 'cameradetectionscreen.dart';
+import 'live_detection_page.dart';
+// <--- MAKE SURE THIS FILE EXISTS
+
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -394,7 +397,7 @@ class _HomePageState extends State<HomePage> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const ImageDetectionPage(),
+                    builder: (context) => CameraDetectionScreen(),
                   ),
                 );
               },

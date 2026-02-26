@@ -1,9 +1,10 @@
-import 'dart:async'; // For Timer
-import 'package:camera/camera.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:ultralytics_yolo/ultralytics_yolo.dart';
+import 'package:ultralytics_yolo/widgets/yolo_controller.dart';
 
 class LiveDetectionPage extends StatefulWidget {
   const LiveDetectionPage({super.key});
@@ -13,42 +14,36 @@ class LiveDetectionPage extends StatefulWidget {
 }
 
 class _LiveDetectionPageState extends State<LiveDetectionPage> {
-  CameraController? _cameraController;
+  // --- Map & GPS ---
   final MapController _miniMapController = MapController();
-
-  // Real GPS Stream
   StreamSubscription<Position>? _positionStreamSubscription;
-
-  // Fake Simulation Timer
   Timer? _simulationTimer;
   bool _isSimulating = false;
+  LatLng _currentLocation = const LatLng(11.2588, 75.7804);
 
-  LatLng _currentLocation = const LatLng(11.2588, 75.7804); // Default
-  bool _isCameraInitialized = false;
+  // --- YOLO controller (enforces thresholds on overlay rendering) ---
+  final YOLOViewController _yoloController = YOLOViewController();
+
+  // --- Detection state (updated by YOLOView.onResult) ---
+  int _potholeCount = 0;
 
   @override
   void initState() {
     super.initState();
-    _initializeCamera();
-    _startNavigationMode(); // Start real GPS (won't move on laptop)
-  }
-
-  Future<void> _initializeCamera() async {
-    final cameras = await availableCameras();
-    if (cameras.isNotEmpty) {
-      _cameraController = CameraController(
-        cameras[0],
-        ResolutionPreset.medium,
-        enableAudio: false,
+    _startNavigationMode();
+    // Enforce thresholds via controller — this overrides the widget prop
+    // and actually controls what the overlay renderer draws.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _yoloController.setThresholds(
+        confidenceThreshold: 0.86,
+        iouThreshold: 0.30,
+        numItemsThreshold: 10,
       );
-      await _cameraController!.initialize();
-      if (!mounted) return;
-      setState(() => _isCameraInitialized = true);
-    }
+    });
   }
 
-  // --- 1. REAL NAVIGATION (For Mobile) ---
-  void _startNavigationMode() async {
+  // ── GPS ─────────────────────────────────────────────────────────────────────
+  void _startNavigationMode() {
     _positionStreamSubscription =
         Geolocator.getPositionStream(
           locationSettings: const LocationSettings(
@@ -56,7 +51,6 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
             distanceFilter: 2,
           ),
         ).listen((Position position) {
-          // Only use real GPS if NOT simulating
           if (!_isSimulating) {
             _updateMapToFollowUser(
               LatLng(position.latitude, position.longitude),
@@ -65,75 +59,82 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
         });
   }
 
-  // --- 2. FAKE NAVIGATION (For Chrome Testing) ---
   void _toggleSimulation() {
     if (_isSimulating) {
       _simulationTimer?.cancel();
       setState(() => _isSimulating = false);
     } else {
       setState(() => _isSimulating = true);
-      // Move 0.0001 degrees every 200ms (Simulates driving fast)
-      _simulationTimer = Timer.periodic(const Duration(milliseconds: 200), (
-        timer,
-      ) {
-        double newLat = _currentLocation.latitude + 0.00005;
-        double newLng = _currentLocation.longitude + 0.00005;
-        _updateMapToFollowUser(LatLng(newLat, newLng));
+      _simulationTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+        _updateMapToFollowUser(
+          LatLng(
+            _currentLocation.latitude + 0.00005,
+            _currentLocation.longitude + 0.00005,
+          ),
+        );
       });
     }
   }
 
-  // --- SHARED: Update Map & Marker ---
   void _updateMapToFollowUser(LatLng newPos) {
     if (!mounted) return;
-
-    setState(() {
-      _currentLocation = newPos;
-    });
-
-    // FORCE MAP TO MOVE
-    _miniMapController.move(
-      _currentLocation,
-      17.0, // Keep zoom tight for navigation feel
-    );
+    setState(() => _currentLocation = newPos);
+    _miniMapController.move(_currentLocation, 17.0);
   }
 
   @override
   void dispose() {
-    _cameraController?.dispose();
-    _miniMapController.dispose();
-    _positionStreamSubscription?.cancel();
     _simulationTimer?.cancel();
+    _positionStreamSubscription?.cancel();
+    _miniMapController.dispose();
     super.dispose();
   }
 
+  // ── UI ───────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    if (!_isCameraInitialized) {
-      return const Scaffold(
-        backgroundColor: Colors.black,
-        body: Center(child: CircularProgressIndicator(color: Colors.red)),
-      );
-    }
-
     return Scaffold(
       body: Stack(
         children: [
-          // 1. Camera Feed
-          SizedBox.expand(child: CameraPreview(_cameraController!)),
+          // 1. YOLOView — handles camera, inference, and bounding boxes natively
+          YOLOView(
+            modelPath: 'yolov26_best_float32.tflite',
+            task: YOLOTask.obb,
+            controller: _yoloController,
+            showOverlays: true,
+            confidenceThreshold: 0.86,
+            iouThreshold: 0.30,
+            onResult: (results) {
+              final potholes = results
+                  .where((d) => d.confidence > 0.85)
+                  .toList();
 
-          // 2. LIVE Indicator
+              if (potholes.isNotEmpty) {
+                debugPrint(
+                  '🚨 ${potholes.length} pothole(s) at '
+                  'Lat: ${_currentLocation.latitude}, '
+                  'Lng: ${_currentLocation.longitude}',
+                );
+              }
+
+              if (mounted) {
+                setState(() => _potholeCount = potholes.length);
+              }
+            },
+          ),
+
+          // 2. LIVE indicator (top left)
           Positioned(
             top: 50,
             left: 20,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.9),
+                color: Colors.red.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Row(
-                children: const [
+              child: const Row(
+                children: [
                   Icon(
                     Icons.fiber_manual_record,
                     color: Colors.white,
@@ -141,7 +142,7 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
                   ),
                   SizedBox(width: 8),
                   Text(
-                    "LIVE REC",
+                    'LIVE REC',
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -152,7 +153,34 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
             ),
           ),
 
-          // 3. Mini Map (Bottom Right)
+          // 3. Pothole count badge (top centre) — only shown when detecting
+          if (_potholeCount > 0)
+            Positioned(
+              top: 50,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.deepOrange.withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '🚧 $_potholeCount pothole${_potholeCount > 1 ? 's' : ''} detected',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // 4. Mini Map (bottom right)
           Positioned(
             bottom: 30,
             right: 20,
@@ -164,7 +192,7 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
                 borderRadius: BorderRadius.circular(15),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.5),
+                    color: Colors.black.withValues(alpha: 0.5),
                     blurRadius: 10,
                   ),
                 ],
@@ -177,7 +205,7 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
                     initialCenter: _currentLocation,
                     initialZoom: 17.0,
                     interactionOptions: const InteractionOptions(
-                      flags: InteractiveFlag.none, // Lock map
+                      flags: InteractiveFlag.none,
                     ),
                   ),
                   children: [
@@ -196,7 +224,7 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
                               color: Colors.blueAccent,
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white, width: 3),
-                              boxShadow: [
+                              boxShadow: const [
                                 BoxShadow(color: Colors.black26, blurRadius: 4),
                               ],
                             ),
@@ -215,7 +243,7 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
             ),
           ),
 
-          // 4. "TEST DRIVE" BUTTON (Bottom Left - For Chrome Testing Only)
+          // 5. Test Drive simulation button (bottom left)
           Positioned(
             bottom: 30,
             left: 20,
@@ -225,11 +253,11 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
               ),
               onPressed: _toggleSimulation,
               icon: Icon(_isSimulating ? Icons.stop : Icons.play_arrow),
-              label: Text(_isSimulating ? "Stop Sim" : "Test Drive"),
+              label: Text(_isSimulating ? 'Stop Sim' : 'Test Drive'),
             ),
           ),
 
-          // 5. Close Button
+          // 6. Close button (top right)
           Positioned(
             top: 50,
             right: 20,

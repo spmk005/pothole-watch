@@ -7,8 +7,13 @@ plugins {
 
 android {
     namespace = "com.example.pothole_watch"
-    compileSdk = 34   // <--- CHANGED: Set to 34 (Android 14) for better compatibility
+    compileSdk = 36   // <--- CHANGED: Set to 34 (Android 14) for better compatibility
     ndkVersion = flutter.ndkVersion
+
+    // 🔴 THE MAGIC FIX: Tell Android NOT to compress the AI model 🔴
+    androidResources {
+        noCompress += "tflite"
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -27,6 +32,11 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        ndk {
+            abiFilters.add("arm64-v8a")
+            abiFilters.add("armeabi-v7a")
+        }
     }
 
     buildTypes {

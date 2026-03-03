@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
-// Comment out the login page for now
-// import 'screens/login_page.dart';
-
-// 1. Import your live video detection page
-import 'screens/cameradetectionscreen.dart';
+import 'package:pothole_watch/firebase_options.dart';
+import 'package:pothole_watch/screens/login_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,9 +10,6 @@ void main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   runApp(
-    MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: CameraDetectionScreen(),
-    ),
+    MaterialApp(debugShowCheckedModeBanner: false, home: const LoginPage()),
   );
 }

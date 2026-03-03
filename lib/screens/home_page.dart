@@ -11,10 +11,8 @@ import 'package:pothole_watch/screens/cameradetectionscreen.dart';
 // --- IMPORTS FOR YOUR APP ---
 import '../models/pothole.dart';
 import '../screens/login_page.dart';
-import 'cameradetectionscreen.dart';
 import 'live_detection_page.dart';
 // <--- MAKE SURE THIS FILE EXISTS
-
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});

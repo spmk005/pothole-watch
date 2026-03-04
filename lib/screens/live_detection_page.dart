@@ -98,8 +98,16 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
         children: [
           // 1. YOLOView — handles camera, inference, and bounding boxes natively
           YOLOView(
-            modelPath: 'yolov26_best_float32.tflite',
-            task: YOLOTask.obb,
+            modelPath: 'no-obb-best_float16',
+            task: YOLOTask.detect,
+            // --- SPEED OPTIMIZATIONS ---
+            useGpu: true,
+            streamingConfig: YOLOStreamingConfig.throttled(
+              maxFPS: 20,
+              includeMasks: false,
+              includeOriginalImage: false,
+            ),
+            // ---------------------------
             controller: _yoloController,
             showOverlays: true,
             confidenceThreshold: 0.86,
@@ -120,6 +128,11 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
               if (mounted) {
                 setState(() => _potholeCount = potholes.length);
               }
+            },
+            onPerformanceMetrics: (metrics) {
+              // Comment these out in production, printing to console takes processing power!
+              // debugPrint('FPS: ${metrics.fps.toStringAsFixed(1)}');
+              // debugPrint('Processing time: ${metrics.processingTimeMs.toStringAsFixed(1)}ms');
             },
           ),
 

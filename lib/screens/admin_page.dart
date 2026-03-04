@@ -166,9 +166,9 @@ class _AdminPageState extends State<AdminPage> {
               pendingTotal++;
             }
 
-            if (sev == 'high')
+            if (sev == 'high') {
               high++;
-            else if (sev == 'medium' || sev == 'med')
+            } else if (sev == 'medium' || sev == 'med')
               med++;
             else
               low++;
@@ -436,7 +436,7 @@ class _AdminPageState extends State<AdminPage> {
                       width: 60,
                       height: 60,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _emptyImage(),
+                      errorBuilder: (_, _, _) => _emptyImage(),
                     )
                   : _emptyImage(),
             ),

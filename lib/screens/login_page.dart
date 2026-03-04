@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'home_page.dart';
 import 'signup_page.dart';
 import 'admin_page.dart';
-import '../services/mock_auth.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -40,25 +40,36 @@ class _LoginPageState extends State<LoginPage> {
     String password = passwordController.text;
 
     try {
-      String? role = await MockAuth.login(email, password);
-
-      if (mounted) {
-        if (role == 'admin') {
+      // Hardcoded admin login check
+      if (email == 'admin@gmail.com' && password == '123456') {
+        if (mounted) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const AdminPage()),
           );
-        } else if (role == 'user') {
+        }
+        return;
+      }
+
+      final response = await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      if (mounted) {
+        if (response.session != null) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const HomePage()),
           );
-        } else {
-          setState(() {
-            errorMessage = "Invalid email or password.";
-            isLoading = false;
-          });
         }
+      }
+    } on AuthException catch (e) {
+      if (mounted) {
+        setState(() {
+          errorMessage = e.message;
+          isLoading = false;
+        });
       }
     } catch (e) {
       if (mounted) {

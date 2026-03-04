@@ -1,0 +1,36 @@
+[√] Flutter (Channel stable, 3.38.6, on Microsoft Windows [Version 10.0.26200.7840], locale en-IN) [576ms]
+    • Flutter version 3.38.6 on channel stable at C:\flutter
+    • Upstream repository https://github.com/flutter/flutter.git
+    • Framework revision 8b87286849 (8 weeks ago), 2026-01-08 10:49:17 -0800
+    • Engine revision 78fc3012e4
+    • Dart version 3.10.7
+    • DevTools version 2.51.1
+    • Feature flags: enable-web, enable-linux-desktop, enable-macos-desktop, enable-windows-desktop, enable-android, enable-ios, cli-animations, enable-native-assets, omit-legacy-version-file, enable-lldb-debugging
+
+[√] Windows Version (Windows 11 or higher, 25H2, 2009) [2.2s]
+
+[X] Android toolchain - develop for Android devices [552ms]
+    • Android SDK at C:\Users\my pc\AppData\Local\Android\sdk
+    • Emulator version 36.3.10.0 (build_id 14472402) (CL:N/A)
+    X cmdline-tools component is missing.
+      Try installing or updating Android Studio.
+      Alternatively, download the tools from https://developer.android.com/studio#command-line-tools-only and make sure to set the ANDROID_HOME environment variable.
+      See https://developer.android.com/studio/command-line for more details.
+
+[√] Chrome - develop for the web [153ms]
+    • Chrome at C:\Program Files\Google\Chrome\Application\chrome.exe
+
+[√] Visual Studio - develop Windows apps (Visual Studio Community 2026 18.3.2) [151ms]
+    • Visual Studio at C:\Program Files\Microsoft Visual Studio\18\Community
+    • Visual Studio Community 2026 version 18.3.11520.95
+    • Windows 10 SDK version 10.0.26100.0
+
+[√] Connected device (3 available) [505ms]
+    • Windows (desktop) • windows • windows-x64    • Microsoft Windows [Version 10.0.26200.7840]
+    • Chrome (web)      • chrome  • web-javascript • Google Chrome 145.0.7632.117
+    • Edge (web)        • edge    • web-javascript • Microsoft Edge 145.0.3800.82
+
+[√] Network resources [674ms]
+    • All expected network resources are available.
+
+! Doctor found issues in 1 category.

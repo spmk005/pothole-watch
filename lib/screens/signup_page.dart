@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/mock_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -32,14 +32,24 @@ class _SignupPageState extends State<SignupPage> {
     setState(() => _isLoading = true);
 
     try {
-      bool success = await MockAuth.signup(
-        _emailController.text.trim(),
-        _passwordController.text,
+      final response = await Supabase.instance.client.auth.signUp(
+        email: _emailController.text.trim().toLowerCase(),
+        password: _passwordController.text,
       );
 
-      if (mounted) {
-        setState(() => _isLoading = false);
-        if (success) {
+      if (response.user != null) {
+        try {
+          await Supabase.instance.client.from('profiles').insert({
+            'id': response.user!.id,
+            'name': _nameController.text.trim(),
+            'email': _emailController.text.trim().toLowerCase(),
+          });
+        } catch (e) {
+          debugPrint('Failed to create profile: $e');
+        }
+
+        if (mounted) {
+          setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Account created! You can now log in.'),
@@ -47,14 +57,14 @@ class _SignupPageState extends State<SignupPage> {
             ),
           );
           Navigator.pop(context);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Signup failed. Email might already be taken.'),
-              backgroundColor: Colors.red,
-            ),
-          );
         }
+      }
+    } on AuthException catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+        );
       }
     } catch (e) {
       if (mounted) {

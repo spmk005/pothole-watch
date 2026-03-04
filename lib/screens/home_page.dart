@@ -446,9 +446,10 @@ class _HomePageState extends State<HomePage> {
             .collection('potholes')
             .snapshots()
             .map((snapshot) {
-              return snapshot.docs
-                  .map((doc) => Pothole.fromMap(doc.id, doc.data()))
-                  .toList();
+              return snapshot.docs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>? ?? {};
+                return Pothole.fromMap(doc.id, data);
+              }).toList();
             }),
         builder: (context, snapshot) {
           final potholes = snapshot.data ?? [];

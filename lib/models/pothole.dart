@@ -21,13 +21,13 @@ class Pothole {
     return Pothole(
       id: id,
       point: LatLng(
-        (data['lat'] as num).toDouble(),
-        (data['lng'] as num).toDouble(),
+        double.tryParse(data['lat']?.toString() ?? '0') ?? 0.0,
+        double.tryParse(data['lng']?.toString() ?? '0') ?? 0.0,
       ),
-      imageUrl: data['imageUrl'],
-      description: data['description'] ?? '',
-      status: data['status'] ?? 'reported',
-      severity: data['severity'] ?? 'Medium', // <--- Read from Firebase
+      imageUrl: data['imageUrl']?.toString(),
+      description: data['description']?.toString() ?? '',
+      status: data['status']?.toString() ?? 'reported',
+      severity: data['severity']?.toString() ?? 'Medium',
     );
   }
 }

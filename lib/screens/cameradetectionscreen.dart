@@ -6,6 +6,8 @@ import 'package:ultralytics_yolo/yolo_streaming_config.dart';
 import 'package:flutter/material.dart';
 
 class CameraDetectionScreen extends StatefulWidget {
+  const CameraDetectionScreen({super.key});
+
   @override
   _CameraDetectionScreenState createState() => _CameraDetectionScreenState();
 }
@@ -13,8 +15,8 @@ class CameraDetectionScreen extends StatefulWidget {
 class _CameraDetectionScreenState extends State<CameraDetectionScreen> {
   late YOLOViewController controller;
   List<YOLOResult> currentResults = [];
-  
-  final double minConfidence = 0.8; 
+
+  final double minConfidence = 0.8;
 
   @override
   void initState() {
@@ -30,7 +32,7 @@ class _CameraDetectionScreenState extends State<CameraDetectionScreen> {
           YOLOView(
             modelPath: 'no-obb-fp16-best',
             task: YOLOTask.detect,
-            
+
             // --- SPEED OPTIMIZATIONS ---
             useGpu: true, // 2. FORCE hardware acceleration
             streamingConfig: YOLOStreamingConfig.throttled(
@@ -38,15 +40,16 @@ class _CameraDetectionScreenState extends State<CameraDetectionScreen> {
               includeMasks: false, // 4. Disable heavy segmentation math
               includeOriginalImage: false, // 5. Stop RAM-heavy image transfers
             ),
-            // ---------------------------
 
+            // ---------------------------
             controller: controller,
             onResult: (results) {
               final highConfidenceResults = results.where((result) {
-                return result.confidence != null && result.confidence! >= minConfidence;
+                return result.confidence >= minConfidence;
               }).toList();
 
-       
+              // Only rebuild the UI if the number of potholes changes
+              // or if you actually need to redraw bounding boxes.
               if (currentResults.length != highConfidenceResults.length) {
                 setState(() {
                   currentResults = highConfidenceResults;

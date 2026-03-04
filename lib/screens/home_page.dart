@@ -11,10 +11,7 @@ import 'package:pothole_watch/screens/cameradetectionscreen.dart';
 // --- IMPORTS FOR YOUR APP ---
 import '../models/pothole.dart';
 import '../screens/login_page.dart';
-import 'cameradetectionscreen.dart';
-import 'live_detection_page.dart';
 // <--- MAKE SURE THIS FILE EXISTS
-
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -361,7 +358,7 @@ class _HomePageState extends State<HomePage> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const LiveDetectionPage(),
+                    builder: (context) => const CameraDetectionScreen(),
                   ),
                 );
               },
@@ -448,9 +445,10 @@ class _HomePageState extends State<HomePage> {
             .collection('potholes')
             .snapshots()
             .map((snapshot) {
-              return snapshot.docs
-                  .map((doc) => Pothole.fromMap(doc.id, doc.data()))
-                  .toList();
+              return snapshot.docs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>? ?? {};
+                return Pothole.fromMap(doc.id, data);
+              }).toList();
             }),
         builder: (context, snapshot) {
           final potholes = snapshot.data ?? [];

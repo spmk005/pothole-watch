@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'dart:math';
 import 'package:ultralytics_yolo/ultralytics_yolo.dart';
 import 'package:ultralytics_yolo/widgets/yolo_controller.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -23,10 +24,14 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
   Timer? _simulationTimer;
   bool _isSimulating = false;
   LatLng _currentLocation = const LatLng(11.2588, 75.7804);
+  double _currentSpeedMps = 0.0;
 
   // --- ALGORITHM CONFIGURATION ---
-  final double _potholeThreshold = 5.0;
+  final double _potholeThreshold =
+      4.0; // Lowered slightly since magnitude is spread across 3 axes
   DateTime _lastDetectionTime = DateTime.now();
+  final List<double> _accelerationWindow = [];
+  final int _windowSize = 25; // Roughly 0.5s of data based on typical sensor Hz
 
   // --- YOLO controller (enforces thresholds on overlay rendering) ---
   final YOLOViewController _yoloController = YOLOViewController();
@@ -65,6 +70,7 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
             _updateMapToFollowUser(
               LatLng(position.latitude, position.longitude),
             );
+            _currentSpeedMps = position.speed;
           }
         });
   }
@@ -106,25 +112,65 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
     _accelerometerStream = userAccelerometerEventStream().listen((
       UserAccelerometerEvent event,
     ) {
-      double verticalImpact = event.y.abs();
+      // 1. Calculate the total vector magnitude of acceleration (removes gravity & phone orientation dependence)
+      double magnitude = sqrt(
+        event.x * event.x + event.y * event.y + event.z * event.z,
+      );
 
-      if (verticalImpact > 1.0) {
+      // We only care about the change in force (spikes), standard resting magnitude approaches 0
+      // since userAccelerometerEventStream removes gravity automatically in Flutter
+
+      if (magnitude > 1.0) {
         debugPrint(
-          "🚗 Y-Axis Jolt (Live Mode): ${verticalImpact.toStringAsFixed(2)}",
+          "🚗 Accelerometer Spike (Live Mode): ${magnitude.toStringAsFixed(2)}",
         );
       }
 
-      if (verticalImpact > _potholeThreshold &&
+      // 2. Keep a rolling window of recent readings to find patterns
+      _accelerationWindow.add(magnitude);
+      if (_accelerationWindow.length > _windowSize) {
+        _accelerationWindow.removeAt(0);
+      }
+
+      // 3. Analyze the recent pattern and current speed
+      if (_accelerationWindow.length >= 10 &&
           DateTime.now().difference(_lastDetectionTime).inSeconds > 3) {
-        _lastDetectionTime = DateTime.now();
-        _registerAccelerometerPotholeHit(verticalImpact);
+        _analyzePatternAndDetect();
       }
     });
   }
 
+  void _analyzePatternAndDetect() {
+    // Check 1: Speed filter. If going under ~15 km/h (4.1 m/s), totally ignore.
+    // This filters out speed bumps right off the bat, as people usually hit them slow.
+    if (_currentSpeedMps < 4.1) return;
+
+    // Check 2: The pattern. A pothole involves a sharp drop (which in the userAccelerometer
+    // creates a brief drop in force as the car goes into freefall) immediately matched by a
+    // massive corrective positive jolt.
+    double maxJolt = 0.0;
+    int joltIndex = -1;
+
+    // Because userAccelerometerEventStream removes gravity and is an absolute magnitude calculation,
+    // we just look for ONE massive outlier in the window that indicates a severe hit
+    for (int i = 0; i < _accelerationWindow.length; i++) {
+      if (_accelerationWindow[i] > _potholeThreshold &&
+          _accelerationWindow[i] > maxJolt) {
+        maxJolt = _accelerationWindow[i];
+        joltIndex = i;
+      }
+    }
+
+    if (joltIndex != -1) {
+      _lastDetectionTime = DateTime.now();
+      // Passing the massive jolt reading to the reporter
+      _registerAccelerometerPotholeHit(maxJolt);
+    }
+  }
+
   Future<void> _registerAccelerometerPotholeHit(double impact) async {
     debugPrint(
-      "🚨 ACCELEROMETER POTHOLE DETECTED! Impact: ${impact.toStringAsFixed(2)}",
+      "ACCELEROMETER POTHOLE DETECTED! Impact: ${impact.toStringAsFixed(2)}",
     );
 
     if (mounted) {
@@ -182,7 +228,7 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
 
               if (potholes.isNotEmpty) {
                 debugPrint(
-                  '🚨 ${potholes.length} pothole(s) at '
+                  '${potholes.length} pothole(s) at '
                   'Lat: ${_currentLocation.latitude}, '
                   'Lng: ${_currentLocation.longitude}',
                 );
@@ -234,32 +280,34 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
             ),
           ),
 
-          // 3. Pothole count badge (top centre) — only shown when detecting
-          if (_potholeCount > 0)
-            Positioned(
-              top: 50,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.deepOrange.withValues(alpha: 0.9),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '🚧 $_potholeCount pothole${_potholeCount > 1 ? 's' : ''} detected',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+          // 3. Pothole count badge (top centre) — persistent
+          Positioned(
+            top: 50,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: _potholeCount > 0
+                      ? Colors.deepOrange.withValues(alpha: 0.9)
+                      : Colors.black.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'Max Session: $_maxPotholesSession  |  Current: $_potholeCount',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
                   ),
                 ),
               ),
             ),
+          ),
 
           // 4. Mini Map (bottom right)
           Positioned(

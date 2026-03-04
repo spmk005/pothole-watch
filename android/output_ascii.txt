@@ -1,0 +1,68 @@
+.\gradlew : WARNING: A 
+restricted method in 
+java.lang.System has been 
+called
+At line:1 char:1
++ .\gradlew assembleDebug 
+2>&1 | Out-File -Encoding 
+ASCII -FilePath out ...
++ 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo           
+   : NotSpecified: (WARNING  
+  : A rest...has been call   
+ ed:String) [], RemoteExc    
+eption
+    + FullyQualifiedErrorId  
+   : NativeCommandError
+ 
+WARNING: 
+java.lang.System::load has 
+been called by net.rubygrapef
+ruit.platform.internal.Native
+LibraryLoader in an unnamed 
+module (file:/C:/Users/my%20p
+c/.gradle/wrapper/dists/gradl
+e-8.11.1-all/2qik7nd48slq1ooc
+2496ixf4i/gradle-8.11.1/lib/n
+ative-platform-0.22-milestone
+-26.jar)
+WARNING: Use --enable-native-
+access=ALL-UNNAMED to avoid 
+a warning for callers in 
+this module
+WARNING: Restricted methods 
+will be blocked in a future 
+release unless native access 
+is enabled
+
+Starting a Gradle Daemon, 2 busy and 2 incompatible and 4 stopped Daemons could not be reused, use --status for details
+
+FAILURE: Build failed with 
+an exception.
+
+* What went wrong:
+Unable to determine version 
+for JDK located at 
+C:\Users\my pc\pothole-watch\
+jdk17\jdk-17.0.14+7. Reason: 
+Command returned unexpected 
+result code: 1
+Error output:
+Error: could not open 
+`C:\Users\my pc\pothole-watch
+\jdk17\jdk-17.0.14+7\lib\jvm.
+cfg'
+
+
+* Try:
+> Run with --stacktrace 
+option to get the stack 
+trace.
+> Run with --info or --debug 
+option to get more log 
+output.
+> Run with --scan to get 
+full insights.
+> Get more help at 
+https://help.gradle.org.

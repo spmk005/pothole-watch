@@ -26,6 +26,7 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
 
   // --- Detection state (updated by YOLOView.onResult) ---
   int _potholeCount = 0;
+  int _maxPotholesSession = 0;
 
   @override
   void initState() {
@@ -118,7 +119,12 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
               }
 
               if (mounted) {
-                setState(() => _potholeCount = potholes.length);
+                setState(() {
+                  _potholeCount = potholes.length;
+                  if (_potholeCount > _maxPotholesSession) {
+                    _maxPotholesSession = _potholeCount;
+                  }
+                });
               }
             },
           ),
@@ -265,7 +271,7 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
               backgroundColor: Colors.black54,
               child: IconButton(
                 icon: const Icon(Icons.close, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(context, _maxPotholesSession),
               ),
             ),
           ),

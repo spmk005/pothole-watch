@@ -166,9 +166,9 @@ class _AdminPageState extends State<AdminPage> {
               pendingTotal++;
             }
 
-            if (sev == 'high')
+            if (sev == 'high') {
               high++;
-            else if (sev == 'medium' || sev == 'med')
+            } else if (sev == 'medium' || sev == 'med')
               med++;
             else
               low++;

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/pothole.dart';
 import 'admin_map_page.dart';
 import 'login_page.dart';
@@ -134,7 +134,7 @@ class _AdminPageState extends State<AdminPage> {
         ),
         IconButton(
           onPressed: () {},
-          icon: Icon(Icons.notifications, color: textColorSecondary),
+          icon: const Icon(Icons.notifications, color: textColorSecondary),
           tooltip: 'Notifications',
         ),
       ],
@@ -142,21 +142,23 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Widget _buildSummaryStats() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('potholes').snapshots(),
-      builder: (context, snapshot) {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: Supabase.instance.client
+          .from('potholes')
+          .stream(primaryKey: ['id']),
+      builder: (context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
         if (snapshot.hasError) {
           return Center(
             child: SelectableText(
-              'Error loading stats: ${snapshot.error}\n${snapshot.stackTrace}',
+              'Error loading stats: ${snapshot.error}',
               style: const TextStyle(color: Colors.red, fontSize: 10),
             ),
           );
         }
         int high = 0, med = 0, low = 0, fixedTotal = 0, pendingTotal = 0;
+
         if (snapshot.hasData) {
-          for (var doc in snapshot.data!.docs) {
-            final data = doc.data() as Map<String, dynamic>? ?? {};
+          for (var data in snapshot.data!) {
             String sev = (data['severity'] ?? '').toString().toLowerCase();
             String status = (data['status'] ?? '').toString().toLowerCase();
 
@@ -168,10 +170,11 @@ class _AdminPageState extends State<AdminPage> {
 
             if (sev == 'high') {
               high++;
-            } else if (sev == 'medium' || sev == 'med')
+            } else if (sev == 'medium' || sev == 'med') {
               med++;
-            else
+            } else {
               low++;
+            }
           }
         }
 
@@ -314,18 +317,18 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Widget _buildRecentReportsList() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('potholes')
-          .orderBy('timestamp', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: Supabase.instance.client
+          .from('potholes')
+          .stream(primaryKey: ['id'])
+          .order('id', ascending: false),
+      builder: (context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
         if (snapshot.hasError) {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: SelectableText(
-                'Error: ${snapshot.error}\n\nStack Trace:\n${snapshot.stackTrace}',
+                'Error: ${snapshot.error}',
                 style: const TextStyle(color: Colors.red, fontSize: 12),
               ),
             ),
@@ -335,13 +338,10 @@ class _AdminPageState extends State<AdminPage> {
           return const Center(child: CircularProgressIndicator());
         }
 
-        var docs = snapshot.data!.docs;
-
-        // Convert to objects
-        var potholes = docs.map((doc) {
-          final data = doc.data() as Map<String, dynamic>? ?? {};
-          return Pothole.fromMap({...data, 'id': doc.id});
-        }).toList();
+        // Convert to Pothole objects directly from Supabase Map
+        var potholes = snapshot.data!
+            .map((data) => Pothole.fromMap(data))
+            .toList();
 
         // Apply filters client-side
         if (_selectedSeverity != null) {
@@ -376,7 +376,7 @@ class _AdminPageState extends State<AdminPage> {
             child: Center(
               child: Text(
                 'No matching reports found',
-                style: TextStyle(color: textColorSecondary),
+                style: const TextStyle(color: textColorSecondary),
               ),
             ),
           );
@@ -527,7 +527,7 @@ class _AdminPageState extends State<AdminPage> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: Icon(Icons.close, color: textColorSecondary),
+                    icon: const Icon(Icons.close, color: textColorSecondary),
                   ),
                 ],
               ),
@@ -601,10 +601,12 @@ class _AdminPageState extends State<AdminPage> {
                       elevation: 0,
                     ),
                     onPressed: () async {
-                      await FirebaseFirestore.instance
-                          .collection('potholes')
-                          .doc(pothole.id.toString())
-                          .update({'status': 'fixed'});
+                      // Supabase Update Logic
+                      await Supabase.instance.client
+                          .from('potholes')
+                          .update({'status': 'fixed'})
+                          .eq('id', pothole.id);
+
                       if (context.mounted) Navigator.pop(context);
                     },
                     child: const Text(
@@ -670,7 +672,7 @@ class _AdminPageState extends State<AdminPage> {
       width: 60,
       height: 60,
       color: textColorPrimary.withOpacity(0.05),
-      child: Icon(Icons.image, color: textColorSecondary),
+      child: const Icon(Icons.image, color: textColorSecondary),
     );
   }
 

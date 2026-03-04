@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+//import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -59,7 +59,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // --- LOGIC: Submit to Firestore ---
+  // --- LOGIC: Submit to Supabase ---
   Future<void> _submitReport(
     LatLng point,
     String severity,
@@ -67,25 +67,35 @@ class _HomePageState extends State<HomePage> {
   ) async {
     setState(() => _isUploading = true);
 
-    // Add to Firestore
-    await FirebaseFirestore.instance.collection('potholes').add({
-      'lat': point.latitude,
-      'lng': point.longitude,
-      'severity': severity,
-      'status': 'Pending',
-      'description': description,
-      'imageUrl': null,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+    try {
+      await Supabase.instance.client.from('potholes').insert({
+        'latitude': point.latitude,
+        'longitude': point.longitude,
+        'severity': severity,
+        'status': 'Pending',
+        'description': description,
+        // Supabase will automatically handle the timestamp and ID!
+      });
 
-    setState(() {
-      _isUploading = false;
-    });
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Report Sent Successfully!")));
-  }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Report Sent Successfully!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Upload error: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  } // tilll here changed
 
   // --- UI: Report Dialog ---
   void _showReportDialog(LatLng point) {
@@ -634,18 +644,25 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 16),
             // --- MAP / LIST AREA ---
             Expanded(
-              child: StreamBuilder<List<Pothole>>(
-                stream: FirebaseFirestore.instance
-                    .collection('potholes')
-                    .snapshots()
-                    .map((snapshot) {
-                      return snapshot.docs.map((doc) {
-                        final data = doc.data() as Map<String, dynamic>? ?? {};
-                        return Pothole.fromMap({...data, 'id': doc.id});
-                      }).toList();
-                    }),
-                builder: (context, snapshot) {
-                  final potholes = snapshot.data ?? [];
+              child: StreamBuilder<List<Map<String, dynamic>>>(
+                // Listening directly to the Supabase table
+                stream: Supabase.instance.client
+                    .from('potholes')
+                    .stream(primaryKey: ['id']),
+                builder: (context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(child: Text("Error: ${snapshot.error}"));
+                  }
+
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  // Convert Supabase Map data directly into your Pothole objects
+                  final potholes = snapshot.data!
+                      .map((data) => Pothole.fromMap(data))
+                      .toList();
+
                   List<Pothole> filteredPotholes = potholes.where((p) {
                     // 1. Filter out Fixed potholes
                     if (p.status.toLowerCase() == 'fixed') return false;
@@ -678,6 +695,7 @@ class _HomePageState extends State<HomePage> {
                             TileLayer(
                               urlTemplate:
                                   'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                              userAgentPackageName: 'com.sajay.potholewatch',
                             ),
                             if (_currentLocation != null)
                               MarkerLayer(

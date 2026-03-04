@@ -317,6 +317,8 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
                     TileLayer(
                       urlTemplate:
                           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName:
+                          'com.sajay.potholewatch', //channge over here
                     ),
                     MarkerLayer(
                       markers: [

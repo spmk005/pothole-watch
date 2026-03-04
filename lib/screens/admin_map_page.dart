@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/pothole.dart';
 
 class AdminMapPage extends StatefulWidget {
   final String? initialSeverity;
   final String? initialStatusFilter;
+
   const AdminMapPage({
     super.key,
     this.initialSeverity,
@@ -55,53 +56,54 @@ class _AdminMapPageState extends State<AdminMapPage> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: StreamBuilder<List<Pothole>>(
-        stream: FirebaseFirestore.instance
-            .collection('potholes')
-            .snapshots()
-            .map((snapshot) {
-              var list = snapshot.docs.map((doc) {
-                final data = doc.data() as Map<String, dynamic>? ?? {};
-                return Pothole.fromMap({...data, 'id': doc.id});
-              }).toList();
-
-              if (widget.initialSeverity != null) {
-                String filter = widget.initialSeverity!.toLowerCase();
-                list = list.where((p) {
-                  String s = p.severity.toLowerCase();
-                  if (filter == 'medium' || filter == 'med') {
-                    return s == 'medium' || s == 'med';
-                  }
-                  return s == filter;
-                }).toList();
-              }
-              if (widget.initialStatusFilter != null &&
-                  widget.initialStatusFilter != 'All') {
-                String filterStatus =
-                    widget.initialStatusFilter!.toLowerCase() == 'fixed'
-                    ? 'fixed'
-                    : 'pending';
-                list = list
-                    .where((p) => p.status.toLowerCase() == filterStatus)
-                    .toList();
-              }
-              return list;
-            }),
-        builder: (context, snapshot) {
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        // 1. Listen directly to Supabase
+        stream: Supabase.instance.client
+            .from('potholes')
+            .stream(primaryKey: ['id']),
+        builder: (context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
           if (snapshot.hasError) {
             return Center(
               child: Text(
                 'Error: ${snapshot.error}',
-                style: TextStyle(color: Colors.red),
+                style: const TextStyle(color: Colors.red),
               ),
             );
           }
-          if (snapshot.connectionState == ConnectionState.waiting) {
+
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final potholes = snapshot.data ?? [];
+          // 2. Convert raw Supabase data to Pothole objects
+          var list = snapshot.data!
+              .map((data) => Pothole.fromMap(data))
+              .toList();
 
+          // 3. Apply Filters passed from the Admin Dashboard
+          if (widget.initialSeverity != null) {
+            String filter = widget.initialSeverity!.toLowerCase();
+            list = list.where((p) {
+              String s = p.severity.toLowerCase();
+              if (filter == 'medium' || filter == 'med') {
+                return s == 'medium' || s == 'med';
+              }
+              return s == filter;
+            }).toList();
+          }
+
+          if (widget.initialStatusFilter != null &&
+              widget.initialStatusFilter != 'All') {
+            String filterStatus =
+                widget.initialStatusFilter!.toLowerCase() == 'fixed'
+                ? 'fixed'
+                : 'pending';
+            list = list
+                .where((p) => p.status.toLowerCase() == filterStatus)
+                .toList();
+          }
+
+          // 4. Build the Map UI
           return FlutterMap(
             mapController: _mapController,
             options: const MapOptions(
@@ -111,10 +113,10 @@ class _AdminMapPageState extends State<AdminMapPage> {
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.pothole.watch',
+                userAgentPackageName: 'com.sajay.potholewatch',
               ),
               MarkerLayer(
-                markers: potholes.map((p) {
+                markers: list.map((p) {
                   return Marker(
                     point: p.point,
                     width: 45,
@@ -255,10 +257,12 @@ class _AdminMapPageState extends State<AdminMapPage> {
                       ),
                     ),
                     onPressed: () async {
-                      await FirebaseFirestore.instance
-                          .collection('potholes')
-                          .doc(pothole.id.toString())
-                          .update({'status': 'fixed'});
+                      // Supabase Update Logic
+                      await Supabase.instance.client
+                          .from('potholes')
+                          .update({'status': 'fixed'})
+                          .eq('id', pothole.id);
+
                       if (context.mounted) Navigator.pop(context);
                     },
                     child: const Text(

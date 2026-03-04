@@ -2,7 +2,7 @@ import 'package:ultralytics_yolo/models/yolo_result.dart';
 import 'package:ultralytics_yolo/models/yolo_task.dart';
 import 'package:ultralytics_yolo/widgets/yolo_controller.dart';
 import 'package:ultralytics_yolo/yolo_view.dart';
-import 'package:ultralytics_yolo/yolo_streaming_config.dart'; // 1. Added this import
+import 'package:ultralytics_yolo/yolo_streaming_config.dart'; 
 import 'package:flutter/material.dart';
 
 class CameraDetectionScreen extends StatefulWidget {
@@ -46,8 +46,7 @@ class _CameraDetectionScreenState extends State<CameraDetectionScreen> {
                 return result.confidence != null && result.confidence! >= minConfidence;
               }).toList();
 
-              // Only rebuild the UI if the number of potholes changes 
-              // or if you actually need to redraw bounding boxes.
+       
               if (currentResults.length != highConfidenceResults.length) {
                 setState(() {
                   currentResults = highConfidenceResults;

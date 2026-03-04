@@ -21,8 +21,6 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
   final MapController _miniMapController = MapController();
   StreamSubscription<Position>? _positionStreamSubscription;
   StreamSubscription<UserAccelerometerEvent>? _accelerometerStream;
-  Timer? _simulationTimer;
-  bool _isSimulating = false;
   LatLng _currentLocation = const LatLng(11.2588, 75.7804);
   double _currentSpeedMps = 0.0;
 
@@ -66,30 +64,9 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
             distanceFilter: 2,
           ),
         ).listen((Position position) {
-          if (!_isSimulating) {
-            _updateMapToFollowUser(
-              LatLng(position.latitude, position.longitude),
-            );
-            _currentSpeedMps = position.speed;
-          }
+          _updateMapToFollowUser(LatLng(position.latitude, position.longitude));
+          _currentSpeedMps = position.speed;
         });
-  }
-
-  void _toggleSimulation() {
-    if (_isSimulating) {
-      _simulationTimer?.cancel();
-      setState(() => _isSimulating = false);
-    } else {
-      setState(() => _isSimulating = true);
-      _simulationTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
-        _updateMapToFollowUser(
-          LatLng(
-            _currentLocation.latitude + 0.00005,
-            _currentLocation.longitude + 0.00005,
-          ),
-        );
-      });
-    }
   }
 
   void _updateMapToFollowUser(LatLng newPos) {
@@ -100,7 +77,6 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
 
   @override
   void dispose() {
-    _simulationTimer?.cancel();
     _positionStreamSubscription?.cancel();
     _accelerometerStream?.cancel();
     _miniMapController.dispose();
@@ -372,21 +348,7 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
             ),
           ),
 
-          // 5. Test Drive simulation button (bottom left)
-          Positioned(
-            bottom: 30,
-            left: 20,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _isSimulating ? Colors.orange : Colors.green,
-              ),
-              onPressed: _toggleSimulation,
-              icon: Icon(_isSimulating ? Icons.stop : Icons.play_arrow),
-              label: Text(_isSimulating ? 'Stop Sim' : 'Test Drive'),
-            ),
-          ),
-
-          // 6. Close button (top right)
+          // 5. Close button (top right)
           Positioned(
             top: 50,
             right: 20,

@@ -5,6 +5,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:ultralytics_yolo/ultralytics_yolo.dart';
 import 'package:ultralytics_yolo/widgets/yolo_controller.dart';
+import 'package:sensors_plus/sensors_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LiveDetectionPage extends StatefulWidget {
   const LiveDetectionPage({super.key});
@@ -17,9 +19,14 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
   // --- Map & GPS ---
   final MapController _miniMapController = MapController();
   StreamSubscription<Position>? _positionStreamSubscription;
+  StreamSubscription<UserAccelerometerEvent>? _accelerometerStream;
   Timer? _simulationTimer;
   bool _isSimulating = false;
   LatLng _currentLocation = const LatLng(11.2588, 75.7804);
+
+  // --- ALGORITHM CONFIGURATION ---
+  final double _potholeThreshold = 5.0;
+  DateTime _lastDetectionTime = DateTime.now();
 
   // --- YOLO controller (enforces thresholds on overlay rendering) ---
   final YOLOViewController _yoloController = YOLOViewController();
@@ -41,6 +48,8 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
         numItemsThreshold: 10,
       );
     });
+
+    _startAccelerometerTracking();
   }
 
   // ── GPS ─────────────────────────────────────────────────────────────────────
@@ -87,8 +96,61 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
   void dispose() {
     _simulationTimer?.cancel();
     _positionStreamSubscription?.cancel();
+    _accelerometerStream?.cancel();
     _miniMapController.dispose();
     super.dispose();
+  }
+
+  // ── BACKGROUND ACCELEROMETER ────────────────────────────────────────────────
+  void _startAccelerometerTracking() {
+    _accelerometerStream = userAccelerometerEventStream().listen((
+      UserAccelerometerEvent event,
+    ) {
+      double verticalImpact = event.y.abs();
+
+      if (verticalImpact > 1.0) {
+        debugPrint(
+          "🚗 Y-Axis Jolt (Live Mode): ${verticalImpact.toStringAsFixed(2)}",
+        );
+      }
+
+      if (verticalImpact > _potholeThreshold &&
+          DateTime.now().difference(_lastDetectionTime).inSeconds > 3) {
+        _lastDetectionTime = DateTime.now();
+        _registerAccelerometerPotholeHit(verticalImpact);
+      }
+    });
+  }
+
+  Future<void> _registerAccelerometerPotholeHit(double impact) async {
+    debugPrint(
+      "🚨 ACCELEROMETER POTHOLE DETECTED! Impact: ${impact.toStringAsFixed(2)}",
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Physical Bump Detected! Impact: ${impact.toStringAsFixed(1)}",
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+
+    try {
+      await Supabase.instance.client.from('potholes').insert({
+        'latitude': _currentLocation.latitude,
+        'longitude': _currentLocation.longitude,
+        'severity': impact > 7.0 ? 'High' : 'Medium',
+        'status': 'Pending',
+        'description':
+            'Auto-detected via Y-Axis accelerometer (Live Mode). Force: ${impact.toStringAsFixed(2)}',
+      });
+    } catch (e) {
+      debugPrint("Error saving auto-pothole: $e");
+    }
   }
 
   // ── UI ───────────────────────────────────────────────────────────────────────
@@ -104,7 +166,7 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
             // --- SPEED OPTIMIZATIONS ---
             useGpu: true,
             streamingConfig: YOLOStreamingConfig.throttled(
-              maxFPS: 20,
+              maxFPS: 25,
               includeMasks: false,
               includeOriginalImage: false,
             ),

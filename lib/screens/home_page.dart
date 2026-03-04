@@ -7,7 +7,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:pothole_watch/screens/cameradetectionscreen.dart';
 
 import '../models/pothole.dart';
 import 'live_detection_page.dart';
@@ -53,13 +52,16 @@ class _HomePageState extends State<HomePage> {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) return;
     }
-
-    Position position = await Geolocator.getCurrentPosition();
-    setState(() {
-      _currentLocation = LatLng(position.latitude, position.longitude);
-    });
-    if (_currentLocation != null) {
-      _mapController.move(_currentLocation!, 15);
+    try {
+      Position position = await Geolocator.getCurrentPosition();
+      setState(() {
+        _currentLocation = LatLng(position.latitude, position.longitude);
+      });
+      if (_currentLocation != null) {
+        _mapController.move(_currentLocation!, 15);
+      }
+    } catch (e) {
+      debugPrint("Location access denied or failed: $e");
     }
   }
 
@@ -798,14 +800,10 @@ class _HomePageState extends State<HomePage> {
                     .collection('potholes')
                     .snapshots()
                     .map((snapshot) {
-                      return snapshot.docs
-                          .map(
-                            (doc) => Pothole.fromMap(
-                              doc.id,
-                              doc.data() as Map<String, dynamic>? ?? {},
-                            ),
-                          )
-                          .toList();
+                      return snapshot.docs.map((doc) {
+                        final data = doc.data() as Map<String, dynamic>? ?? {};
+                        return Pothole.fromMap({...data, 'id': doc.id});
+                      }).toList();
                     }),
                 builder: (context, snapshot) {
                   final potholes = snapshot.data ?? [];

@@ -340,7 +340,7 @@ class _AdminPageState extends State<AdminPage> {
         // Convert to objects
         var potholes = docs.map((doc) {
           final data = doc.data() as Map<String, dynamic>? ?? {};
-          return Pothole.fromMap(doc.id, data);
+          return Pothole.fromMap({...data, 'id': doc.id});
         }).toList();
 
         // Apply filters client-side
@@ -603,7 +603,7 @@ class _AdminPageState extends State<AdminPage> {
                     onPressed: () async {
                       await FirebaseFirestore.instance
                           .collection('potholes')
-                          .doc(pothole.id)
+                          .doc(pothole.id.toString())
                           .update({'status': 'fixed'});
                       if (context.mounted) Navigator.pop(context);
                     },

@@ -62,7 +62,7 @@ class _AdminMapPageState extends State<AdminMapPage> {
             .map((snapshot) {
               var list = snapshot.docs.map((doc) {
                 final data = doc.data() as Map<String, dynamic>? ?? {};
-                return Pothole.fromMap(doc.id, data);
+                return Pothole.fromMap({...data, 'id': doc.id});
               }).toList();
 
               if (widget.initialSeverity != null) {
@@ -257,7 +257,7 @@ class _AdminMapPageState extends State<AdminMapPage> {
                     onPressed: () async {
                       await FirebaseFirestore.instance
                           .collection('potholes')
-                          .doc(pothole.id)
+                          .doc(pothole.id.toString())
                           .update({'status': 'fixed'});
                       if (context.mounted) Navigator.pop(context);
                     },

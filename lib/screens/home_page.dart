@@ -1,17 +1,13 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/pothole.dart';
 import 'live_detection_page.dart';
 import 'login_page.dart';
-// <--- MAKE SURE THIS FILE EXISTS
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -30,8 +26,6 @@ class _HomePageState extends State<HomePage> {
   // --- CORE VARIABLES ---
   LatLng? _currentLocation;
   final MapController _mapController = MapController();
-  final ImagePicker _picker = ImagePicker();
-  Uint8List? _imageBytes;
   bool _isUploading = false;
 
   @override
@@ -65,23 +59,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // --- LOGIC: Image Picker (Manual Report) ---
-  Future<void> _pickImage() async {
-    final XFile? photo = await _picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 40,
-    );
-    if (photo != null) {
-      final bytes = await photo.readAsBytes();
-      setState(() => _imageBytes = bytes);
-
-      // If they pick an image via button, assume current location
-      if (_currentLocation != null) {
-        _showReportDialog(_currentLocation!);
-      }
-    }
-  }
-
   // --- LOGIC: Submit to Firestore ---
   Future<void> _submitReport(
     LatLng point,
@@ -90,24 +67,6 @@ class _HomePageState extends State<HomePage> {
   ) async {
     setState(() => _isUploading = true);
 
-    // Upload Image first (if exists)
-    String? imageUrl;
-    if (_imageBytes != null) {
-      try {
-        String fileName = DateTime.now().millisecondsSinceEpoch.toString();
-        Reference storageRef = FirebaseStorage.instance.ref().child(
-          'pothole_images/$fileName.jpg',
-        );
-        await storageRef.putData(
-          _imageBytes!,
-          SettableMetadata(contentType: 'image/jpeg'),
-        );
-        imageUrl = await storageRef.getDownloadURL();
-      } catch (e) {
-        print("Error uploading: $e");
-      }
-    }
-
     // Add to Firestore
     await FirebaseFirestore.instance.collection('potholes').add({
       'lat': point.latitude,
@@ -115,13 +74,12 @@ class _HomePageState extends State<HomePage> {
       'severity': severity,
       'status': 'Pending',
       'description': description,
-      'imageUrl': imageUrl,
+      'imageUrl': null,
       'timestamp': FieldValue.serverTimestamp(),
     });
 
     setState(() {
       _isUploading = false;
-      _imageBytes = null;
     });
 
     ScaffoldMessenger.of(
@@ -146,18 +104,6 @@ class _HomePageState extends State<HomePage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (_imageBytes != null)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.memory(
-                          _imageBytes!,
-                          height: 100,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    const SizedBox(height: 10),
-
                     const Text(
                       "Severity:",
                       style: TextStyle(fontWeight: FontWeight.bold),
@@ -681,113 +627,6 @@ class _HomePageState extends State<HomePage> {
       drawer: _buildSidebar(),
       extendBody: true,
       backgroundColor: const Color(0xFFF8F9FA),
-      // --- UPDATED APP BAR ---
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
-              "PotholeWatch",
-              style: TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-              ),
-            ),
-            Text(
-              "Tap map to report",
-              style: TextStyle(color: Colors.grey, fontSize: 12),
-            ),
-          ],
-        ),
-        actions: [
-          // 1. LIVE RECORDING BUTTON (NEW)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                elevation: 0,
-              ),
-              icon: const Icon(Icons.videocam, color: Colors.white, size: 18),
-              label: const Text(
-                "LIVE REC",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const LiveDetectionPage(),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(width: 10),
-
-          // 2. IMAGE REC BUTTON (NEW)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                elevation: 0,
-              ),
-              icon: const Icon(
-                Icons.image_search,
-                color: Colors.white,
-                size: 18,
-              ),
-              label: const Text(
-                "VERIFY",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const LiveDetectionPage(),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(width: 10),
-
-          // 3. PHOTO BUTTON (EXISTING)
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0, top: 8, bottom: 8),
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepOrange,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              icon: const Icon(Icons.camera_alt, color: Colors.white, size: 18),
-              label: const Text("Photo", style: TextStyle(color: Colors.white)),
-              onPressed: _pickImage,
-            ),
-          ),
-        ],
-      ),
       body: SafeArea(
         bottom: false,
         child: Column(

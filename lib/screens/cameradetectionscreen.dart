@@ -2,7 +2,7 @@ import 'package:ultralytics_yolo/models/yolo_result.dart';
 import 'package:ultralytics_yolo/models/yolo_task.dart';
 import 'package:ultralytics_yolo/widgets/yolo_controller.dart';
 import 'package:ultralytics_yolo/yolo_view.dart';
-import 'package:ultralytics_yolo/yolo_streaming_config.dart'; // 1. Added this import
+import 'package:ultralytics_yolo/yolo_streaming_config.dart'; 
 import 'package:flutter/material.dart';
 
 class CameraDetectionScreen extends StatefulWidget {

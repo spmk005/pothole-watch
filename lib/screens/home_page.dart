@@ -678,7 +678,114 @@ class _HomePageState extends State<HomePage> {
       key: _scaffoldKey,
       drawer: _buildSidebar(),
       extendBody: true,
-      backgroundColor: const Color(0xFF424242),
+      backgroundColor: const Color(0xFFF8F9FA),
+      // --- UPDATED APP BAR ---
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Text(
+              "PotholeWatch",
+              style: TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
+            ),
+            Text(
+              "Tap map to report",
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          // 1. LIVE RECORDING BUTTON (NEW)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.videocam, color: Colors.white, size: 18),
+              label: const Text(
+                "LIVE REC",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const CameraDetectionScreen(),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 10),
+
+          // 2. IMAGE REC BUTTON (NEW)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueAccent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                elevation: 0,
+              ),
+              icon: const Icon(
+                Icons.image_search,
+                color: Colors.white,
+                size: 18,
+              ),
+              label: const Text(
+                "VERIFY",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CameraDetectionScreen(),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 10),
+
+          // 3. PHOTO BUTTON (EXISTING)
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0, top: 8, bottom: 8),
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepOrange,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              icon: const Icon(Icons.camera_alt, color: Colors.white, size: 18),
+              label: const Text("Photo", style: TextStyle(color: Colors.white)),
+              onPressed: _pickImage,
+            ),
+          ),
+        ],
+      ),
       body: SafeArea(
         bottom: false,
         child: Column(

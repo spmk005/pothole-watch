@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:camera/camera.dart';
 import 'dart:async';
 import '../models/pothole.dart';
 import 'live_detection_page.dart';
@@ -37,28 +37,43 @@ class _HomePageState extends State<HomePage> {
   final Set<String> _alertedPotholeIds = {};
   bool _isTrackingLocation = true;
 
+  CameraController? _cameraController;
+
   @override
   void initState() {
     super.initState();
     _determinePosition();
     _initAlarmLogic();
+    _initCamera();
+  }
+
+  Future<void> _initCamera() async {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) return;
+      _cameraController = CameraController(
+        cameras[0],
+        ResolutionPreset.medium,
+        enableAudio: false,
+      );
+      await _cameraController!.initialize();
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint("Camera init error: $e");
+    }
+  }
+
+  void _disposeCamera() {
+    _cameraController?.dispose();
+    _cameraController = null;
   }
 
   void _initAlarmLogic() {
-    // 1. Listen for potholes from Firestore
-    _potholesSubscription = FirebaseFirestore.instance
-        .collection('potholes')
-        .snapshots()
-        .map((snapshot) {
-          return snapshot.docs
-              .map(
-                (doc) => Pothole.fromMap(
-                  doc.id,
-                  doc.data() as Map<String, dynamic>? ?? {},
-                ),
-              )
-              .toList();
-        })
+    // 1. Listen for potholes from Supabase
+    _potholesSubscription = Supabase.instance.client
+        .from('potholes')
+        .stream(primaryKey: ['id'])
+        .map((data) => data.map((d) => Pothole.fromMap(d)).toList())
         .listen((potholes) {
           if (mounted) {
             setState(() {
@@ -170,6 +185,7 @@ class _HomePageState extends State<HomePage> {
     _potholesSubscription?.cancel();
     _audioPlayer.dispose();
     _mapController.dispose();
+    _disposeCamera();
     super.dispose();
   }
 
@@ -208,8 +224,8 @@ class _HomePageState extends State<HomePage> {
 
     try {
       await Supabase.instance.client.from('potholes').insert({
-        'latitude': point.latitude,
-        'longitude': point.longitude,
+        'lat': point.latitude,
+        'lng': point.longitude,
         'severity': severity,
         'status': 'Pending',
         'description': description,
@@ -455,97 +471,120 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ],
               ),
-              child: Stack(
-                children: [
-                  Positioned(
-                    top: 80,
-                    left: 0,
-                    right: 0,
-                    child: Container(
-                      height: 1.5,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.deepOrange.withOpacity(0.1),
-                            Colors.deepOrange,
-                            Colors.deepOrange.withOpacity(0.1),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (_cameraController != null &&
+                        _cameraController!.value.isInitialized)
+                      SizedBox.expand(
+                        child: FittedBox(
+                          fit: BoxFit.cover,
+                          child: SizedBox(
+                            width:
+                                _cameraController!.value.previewSize?.height ??
+                                1,
+                            height:
+                                _cameraController!.value.previewSize?.width ??
+                                1,
+                            child: CameraPreview(_cameraController!),
+                          ),
+                        ),
+                      ),
+                    Positioned(
+                      top: 80,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        height: 1.5,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.deepOrange.withOpacity(0.1),
+                              Colors.deepOrange,
+                              Colors.deepOrange.withOpacity(0.1),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 40,
+                      left: 50,
+                      child: Container(
+                        width: 140,
+                        height: 90,
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: Colors.deepOrange,
+                            width: 2,
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 25,
+                      left: 50,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: const BoxDecoration(
+                          color: Colors.deepOrange,
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(8),
+                            topRight: Radius.circular(8),
+                            bottomRight: Radius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          "POTHOLE\nDETECTED",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 15,
+                      left: 15,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.location_on,
+                              color: Colors.deepOrange,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              locationString,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ],
                         ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    top: 40,
-                    left: 50,
-                    child: Container(
-                      width: 140,
-                      height: 90,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.deepOrange, width: 2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 25,
-                    left: 50,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: const BoxDecoration(
-                        color: Colors.deepOrange,
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(8),
-                          topRight: Radius.circular(8),
-                          bottomRight: Radius.circular(8),
-                        ),
-                      ),
-                      child: const Text(
-                        "POTHOLE\nDETECTED",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          height: 1.2,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 15,
-                    left: 15,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.6),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.location_on,
-                            color: Colors.deepOrange,
-                            size: 14,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            locationString,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -667,6 +706,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 onPressed: () async {
+                  _disposeCamera();
                   final int? result = await Navigator.push<int>(
                     context,
                     MaterialPageRoute(
@@ -678,6 +718,7 @@ class _HomePageState extends State<HomePage> {
                       _scannerPotholesFound += result;
                     });
                   }
+                  _initCamera();
                 },
               ),
             ),

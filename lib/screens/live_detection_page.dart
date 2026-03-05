@@ -163,8 +163,8 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
 
     try {
       await Supabase.instance.client.from('potholes').insert({
-        'latitude': _currentLocation.latitude,
-        'longitude': _currentLocation.longitude,
+        'lat': _currentLocation.latitude,
+        'lng': _currentLocation.longitude,
         'severity': impact > 7.0 ? 'High' : 'Medium',
         'status': 'Pending',
         'description':

@@ -1,6 +1,5 @@
 plugins {
     id "com.android.application"
-    id "com.google.gms.google-services"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
 }
@@ -8,11 +7,7 @@ plugins {
 android {
     namespace = "com.example.pothole_watch"
     compileSdk = 36
-<<<<<<< HEAD
     buildToolsVersion = "34.0.0"
-=======
-    buildToolsVersion = "35.0.0"
->>>>>>> aba3fb5 (feat: Add proximity alarm for potholes and real-time map tracking)
     ndkVersion = flutter.ndkVersion
 
     androidResources {

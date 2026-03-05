@@ -1,7 +1,7 @@
 import 'package:latlong2/latlong.dart';
 
 class Pothole {
-  final int id; // <--- Changed to 'int' for Supabase
+  final String id; // <--- Changed back to String for Supabase UUIDs
   final LatLng point;
   final String severity;
   final String status;
@@ -22,14 +22,10 @@ class Pothole {
   // Updated factory method to match Supabase's exact column names
   factory Pothole.fromMap(Map<String, dynamic> data) {
     return Pothole(
-      id: data['id'] is int
-          ? data['id']
-          : int.tryParse(data['id'].toString()) ?? 0,
+      id: data['id']?.toString() ?? '',
       point: LatLng(
-        (data['latitude'] as num)
-            .toDouble(), // Supabase uses 'latitude', not 'lat'
-        (data['longitude'] as num)
-            .toDouble(), // Supabase uses 'longitude', not 'lng'
+        (data['lat'] as num).toDouble(),
+        (data['lng'] as num).toDouble(),
       ),
       severity: data['severity'] ?? 'Medium',
       status: data['status'] ?? 'Pending',

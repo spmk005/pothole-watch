@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-// import 'package:pothole_watch/screens/cameradetectionscreen.dart'; // Unused
+import 'package:geolocator/geolocator.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:async';
-
 import '../models/pothole.dart';
 import 'live_detection_page.dart';
 import 'login_page.dart';

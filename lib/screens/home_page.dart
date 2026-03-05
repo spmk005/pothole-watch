@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-//import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+// import 'package:pothole_watch/screens/cameradetectionscreen.dart'; // Unused
+import 'package:audioplayers/audioplayers.dart';
+import 'dart:async';
 
 import '../models/pothole.dart';
 import 'live_detection_page.dart';
@@ -28,10 +29,148 @@ class _HomePageState extends State<HomePage> {
   final MapController _mapController = MapController();
   bool _isUploading = false;
 
+  // --- ALARM VARIABLES ---
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  StreamSubscription<Position>? _positionSubscription;
+  StreamSubscription<List<Pothole>>? _potholesSubscription;
+  List<Pothole> _allPotholes = [];
+  final Set<String> _alertedPotholeIds = {};
+  bool _isTrackingLocation = true;
+
   @override
   void initState() {
     super.initState();
     _determinePosition();
+    _initAlarmLogic();
+  }
+
+  void _initAlarmLogic() {
+    // 1. Listen for potholes from Firestore
+    _potholesSubscription = FirebaseFirestore.instance
+        .collection('potholes')
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs
+              .map(
+                (doc) => Pothole.fromMap(
+                  doc.id,
+                  doc.data() as Map<String, dynamic>? ?? {},
+                ),
+              )
+              .toList();
+        })
+        .listen((potholes) {
+          if (mounted) {
+            setState(() {
+              _allPotholes = potholes;
+            });
+          }
+        });
+
+    // 2. Listen for position updates
+    _positionSubscription =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.bestForNavigation,
+            distanceFilter: 5, // Update every 5 meters
+          ),
+        ).listen((Position position) {
+          final currentPos = LatLng(position.latitude, position.longitude);
+          if (mounted) {
+            setState(() {
+              _currentLocation = currentPos;
+            });
+            if (_isTrackingLocation && _currentBottomNavIndex == 1) {
+              try {
+                _mapController.move(currentPos, 15.0);
+              } catch (e) {
+                // Ignore map controller errors if not yet ready
+              }
+            }
+          }
+          _checkProximity(currentPos);
+        });
+  }
+
+  void _checkProximity(LatLng currentPos) {
+    const distanceCalculator = Distance();
+
+    for (var pothole in _allPotholes) {
+      // Filter by severity if necessary or just check all
+      // Skip if already alerted for this pothole in this session
+      if (_alertedPotholeIds.contains(pothole.id)) continue;
+
+      // Calculate distance in meters
+      double meters = distanceCalculator.as(
+        LengthUnit.Meter,
+        currentPos,
+        pothole.point,
+      );
+
+      if (meters <= 15.0) {
+        _triggerAlarm(pothole);
+        break; // Trigger only one alarm at a time to avoid overlapping alerts
+      }
+    }
+  }
+
+  Future<void> _triggerAlarm(Pothole pothole) async {
+    _alertedPotholeIds.add(pothole.id);
+
+    // Play Alert Sound
+    try {
+      // Using a short notification sound from a public CDN for demonstration
+      await _audioPlayer.play(
+        UrlSource(
+          'https://codeskulptor-demos.commondatastorage.googleapis.com/descent/gotitem.mp3',
+        ),
+      );
+    } catch (e) {
+      debugPrint("Error playing alarm sound: $e");
+    }
+
+    // Show visual warning
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.warning, color: Colors.white),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  "🚨 POTHOLE AHEAD! (15m) \nSeverity: ${pothole.severity}",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.redAccent,
+          duration: const Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          action: SnackBarAction(
+            label: 'OK',
+            textColor: Colors.white,
+            onPressed: () {},
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _positionSubscription?.cancel();
+    _potholesSubscription?.cancel();
+    _audioPlayer.dispose();
+    _mapController.dispose();
+    super.dispose();
   }
 
   // --- LOGIC: Location ---
@@ -637,6 +776,25 @@ class _HomePageState extends State<HomePage> {
       drawer: _buildSidebar(),
       extendBody: true,
       backgroundColor: const Color(0xFFF8F9FA),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 90.0),
+        child: FloatingActionButton(
+          heroTag: "trackLocationBtn",
+          backgroundColor: _isTrackingLocation
+              ? Colors.deepOrange
+              : Colors.white,
+          onPressed: () {
+            setState(() => _isTrackingLocation = !_isTrackingLocation);
+            if (_isTrackingLocation && _currentLocation != null) {
+              _mapController.move(_currentLocation!, 15.0);
+            }
+          },
+          child: Icon(
+            Icons.my_location,
+            color: _isTrackingLocation ? Colors.white : Colors.deepOrange,
+          ),
+        ),
+      ),
       body: SafeArea(
         bottom: false,
         child: Column(

@@ -206,8 +206,12 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         _currentLocation = LatLng(position.latitude, position.longitude);
       });
-      if (_currentLocation != null) {
-        _mapController.move(_currentLocation!, 15);
+      try {
+        if (_currentLocation != null) {
+          _mapController.move(_currentLocation!, 15);
+        }
+      } catch (_) {
+        // Map widget not rendered yet — will move when user opens MAP tab
       }
     } catch (e) {
       debugPrint("Location access denied or failed: $e");
@@ -331,11 +335,14 @@ class _HomePageState extends State<HomePage> {
   Color _getMarkerColor(String severity) {
     switch (severity.toLowerCase()) {
       case 'high':
+      case 'severe':
         return Colors.red;
       case 'medium':
         return Colors.orange;
       case 'low':
         return Colors.yellow;
+      case 'pending':
+        return Colors.blueGrey;
       default:
         return Colors.grey;
     }
@@ -1003,14 +1010,22 @@ class _HomePageState extends State<HomePage> {
                                       color: Colors.black,
                                       fontSize: 13,
                                     ),
-                                    items: ['All', 'High', 'Medium', 'Low']
-                                        .map(
-                                          (val) => DropdownMenuItem(
-                                            value: val,
-                                            child: Text(val),
-                                          ),
-                                        )
-                                        .toList(),
+                                    items:
+                                        [
+                                              'All',
+                                              'Severe',
+                                              'High',
+                                              'Medium',
+                                              'Low',
+                                              'Pending',
+                                            ]
+                                            .map(
+                                              (val) => DropdownMenuItem(
+                                                value: val,
+                                                child: Text(val),
+                                              ),
+                                            )
+                                            .toList(),
                                     onChanged: (val) => setState(
                                       () => _selectedSeverityFilter = val!,
                                     ),

@@ -183,12 +183,12 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
         children: [
           // 1. YOLOView — handles camera, inference, and bounding boxes natively
           YOLOView(
-            modelPath: 'no-obb-best_float16',
+            modelPath: 'new-dataset-yolov26_int8',
             task: YOLOTask.detect,
             // --- SPEED OPTIMIZATIONS ---
-            useGpu: true,
+            useGpu: false,
             streamingConfig: YOLOStreamingConfig.throttled(
-              maxFPS: 25,
+              maxFPS: 10,
               includeMasks: false,
               includeOriginalImage: false,
             ),
@@ -220,9 +220,10 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
               }
             },
             onPerformanceMetrics: (metrics) {
-              // Comment these out in production, printing to console takes processing power!
-              // debugPrint('FPS: ${metrics.fps.toStringAsFixed(1)}');
-              // debugPrint('Processing time: ${metrics.processingTimeMs.toStringAsFixed(1)}ms');
+              // ⚡ Uncommented to test INT8 CPU/NPU performance
+              debugPrint(
+                '⚡ FPS: ${metrics.fps.toStringAsFixed(1)} | ⏱️ Inference: ${metrics.processingTimeMs.toStringAsFixed(1)}ms',
+              );
             },
           ),
 

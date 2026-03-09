@@ -757,9 +757,84 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.home),
-            title: const Text("Dashboard"),
-            onTap: () => Navigator.pop(context),
+            leading: const Icon(Icons.person, color: Colors.deepOrange),
+            title: const Text("Profile"),
+            onTap: () async {
+              Navigator.pop(context); // Close drawer
+
+              final user = Supabase.instance.client.auth.currentUser;
+              final email = user?.email ?? 'Unknown Email';
+              String name = 'PotholeWatch User'; // Default
+
+              if (user != null) {
+                try {
+                  // Fetch the user's name from the profiles table
+                  final profileData = await Supabase.instance.client
+                      .from('profiles')
+                      .select('name')
+                      .eq('id', user.id)
+                      .maybeSingle();
+
+                  if (profileData != null && profileData['name'] != null) {
+                    name = profileData['name'] as String;
+                  }
+                } catch (e) {
+                  debugPrint('Error fetching profile name: $e');
+                }
+              }
+
+              if (!mounted) return;
+
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  title: Row(
+                    children: const [
+                      Icon(Icons.person, color: Colors.deepOrange, size: 28),
+                      SizedBox(width: 10),
+                      Text("My Profile"),
+                    ],
+                  ),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Name:",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      Text(name, style: const TextStyle(fontSize: 18)),
+                      const SizedBox(height: 15),
+                      const Text(
+                        "Email:",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      Text(email, style: const TextStyle(fontSize: 18)),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.deepOrange,
+                      ),
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text("Close"),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
           const Spacer(),
           const Divider(),

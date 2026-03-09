@@ -356,7 +356,8 @@ class _HomePageState extends State<HomePage> {
       case 'pending':
         return Colors.blueGrey;
       default:
-        return Colors.grey;
+        return Colors
+            .blueGrey; // Treat any unknown severity as pending/unanalysed
     }
   }
 

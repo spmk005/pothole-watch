@@ -27,7 +27,7 @@ android {
         applicationId = "com.example.pothole_watch"
         
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
@@ -39,6 +39,9 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.debug
+            minifyEnabled = false
+            shrinkResources = false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }

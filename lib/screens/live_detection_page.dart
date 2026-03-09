@@ -296,6 +296,7 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
         height: imageHeight,
       );
       final encodedBytes = await compute(_encodeJpeg, params);
+      if (!mounted) return; // Step 3: guard against unmounted crashes
       await File(filePath).writeAsBytes(encodedBytes);
       print('[CAPTURE] 💾 Frame saved to temp path: $filePath');
 
@@ -373,15 +374,27 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
         List.from(_capturedPotholes),
       );
 
-      print('[MiDaS] 🔬 Processed ${results.length} captures');
+      debugPrint('[MiDaS] 🔬 Processed ${results.length} captures');
       for (final result in results) {
-        print(
+        debugPrint(
           '[MiDaS]    → ${result.severity} (dropoff: ${result.depthDropoff.toStringAsFixed(3)})',
         );
       }
     } catch (e) {
       print('[MiDaS] ❌ Pipeline error: $e');
     } finally {
+      // Step 2: Clean up cached JPEGs to prevent storage leak
+      for (final capture in _capturedPotholes) {
+        try {
+          final file = File(capture.imagePath);
+          if (await file.exists()) {
+            await file.delete();
+            debugPrint('[CLEANUP] 🗑️ Deleted ${capture.imagePath}');
+          }
+        } catch (e) {
+          debugPrint('[CLEANUP] ⚠️ Failed to delete ${capture.imagePath}: $e');
+        }
+      }
       _capturedPotholes.clear();
       if (mounted) {
         setState(() => _isProcessingDepth = false);
@@ -539,7 +552,7 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
                 ),
               ),
 
-            // 5. Mini Map (bottom right) — ValueListenableBuilder
+            // 5. Mini Map (bottom right)
             Positioned(
               bottom: 30,
               right: 20,
@@ -558,25 +571,26 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: ValueListenableBuilder<LatLng>(
-                    valueListenable: _currentLocation,
-                    builder: (context, loc, _) {
-                      return FlutterMap(
-                        mapController: _miniMapController,
-                        options: MapOptions(
-                          initialCenter: loc,
-                          initialZoom: 17.0,
-                          interactionOptions: const InteractionOptions(
-                            flags: InteractiveFlag.none,
-                          ),
-                        ),
-                        children: [
-                          TileLayer(
-                            urlTemplate:
-                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            userAgentPackageName: 'com.sajay.potholewatch',
-                          ),
-                          MarkerLayer(
+                  child: FlutterMap(
+                    mapController: _miniMapController,
+                    options: MapOptions(
+                      initialCenter: _currentLocation.value,
+                      initialZoom: 17.0,
+                      interactionOptions: const InteractionOptions(
+                        flags: InteractiveFlag.none,
+                      ),
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.sajay.potholewatch',
+                      ),
+                      // User location marker — only this rebuilds on GPS
+                      ValueListenableBuilder<LatLng>(
+                        valueListenable: _currentLocation,
+                        builder: (context, loc, _) {
+                          return MarkerLayer(
                             markers: [
                               Marker(
                                 point: loc,
@@ -605,41 +619,42 @@ class _LiveDetectionPageState extends State<LiveDetectionPage> {
                                 ),
                               ),
                             ],
-                          ),
-                          ValueListenableBuilder<List<LatLng>>(
-                            valueListenable: _detectedPotholeLocations,
-                            builder: (context, locs, _) {
-                              return MarkerLayer(
-                                markers: locs
-                                    .map(
-                                      (loc) => Marker(
-                                        point: loc,
-                                        width: 20,
-                                        height: 20,
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            color: Colors.deepOrange,
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: Colors.white,
-                                              width: 2,
-                                            ),
-                                          ),
-                                          child: const Icon(
-                                            Icons.warning_amber_rounded,
-                                            color: Colors.white,
-                                            size: 10,
-                                          ),
+                          );
+                        },
+                      ),
+                      // Detected pothole markers for this session
+                      ValueListenableBuilder<List<LatLng>>(
+                        valueListenable: _detectedPotholeLocations,
+                        builder: (context, locs, _) {
+                          return MarkerLayer(
+                            markers: locs
+                                .map(
+                                  (loc) => Marker(
+                                    point: loc,
+                                    width: 20,
+                                    height: 20,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.deepOrange,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Colors.white,
+                                          width: 2,
                                         ),
                                       ),
-                                    )
-                                    .toList(),
-                              );
-                            },
-                          ),
-                        ],
-                      );
-                    },
+                                      child: const Icon(
+                                        Icons.warning_amber_rounded,
+                                        color: Colors.white,
+                                        size: 10,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ),
               ),

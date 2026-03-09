@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart' as p;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
@@ -19,7 +18,7 @@ class PotholeRepository {
     if (_db != null) return _db!;
     final dbPath = await getDatabasesPath();
     _db = await openDatabase(
-      p.join(dbPath, 'pothole_queue.db'),
+      '$dbPath/pothole_queue.db',
       version: 1,
       onCreate: (db, version) async {
         await db.execute('''

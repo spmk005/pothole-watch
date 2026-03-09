@@ -227,16 +227,28 @@ class _HomePageState extends State<HomePage> {
     setState(() => _isUploading = true);
 
     try {
-      await Supabase.instance.client.from('potholes').insert({
-        'lat': point.latitude,
-        'lng': point.longitude,
-        'severity': severity,
-        'status': 'Pending',
-        'description': description,
-        // Supabase will automatically handle the timestamp and ID!
-      });
+      final response = await Supabase.instance.client
+          .from('potholes')
+          .insert({
+            'lat': point.latitude,
+            'lng': point.longitude,
+            'severity': severity,
+            'status': 'Pending',
+            'description': description,
+            // Supabase will automatically handle the timestamp and ID!
+          })
+          .select()
+          .single();
 
       if (mounted) {
+        final newPothole = Pothole.fromMap(response);
+        setState(() {
+          // Add the newly created pothole to the map instantly
+          if (!_allPotholes.any((p) => p.id == newPothole.id)) {
+            _allPotholes.add(newPothole);
+          }
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Report Sent Successfully!"),
@@ -636,56 +648,6 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "DISTANCE\nSCANNED",
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF475569),
-                            height: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            const Text(
-                              "4.2",
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            const Padding(
-                              padding: EdgeInsets.only(bottom: 4),
-                              child: Text(
-                                "Miles",
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF94A3B8),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
               ],
             ),
             const SizedBox(height: 30),
@@ -850,26 +812,9 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 16),
             // --- MAP / LIST AREA ---
             Expanded(
-              child: StreamBuilder<List<Map<String, dynamic>>>(
-                // Listening directly to the Supabase table
-                stream: Supabase.instance.client
-                    .from('potholes')
-                    .stream(primaryKey: ['id']),
-                builder: (context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
-                  if (snapshot.hasError) {
-                    return Center(child: Text("Error: ${snapshot.error}"));
-                  }
-
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  // Convert Supabase Map data directly into your Pothole objects
-                  final potholes = snapshot.data!
-                      .map((data) => Pothole.fromMap(data))
-                      .toList();
-
-                  List<Pothole> filteredPotholes = potholes.where((p) {
+              child: Builder(
+                builder: (context) {
+                  List<Pothole> filteredPotholes = _allPotholes.where((p) {
                     // 1. Filter out Fixed potholes
                     if (p.status.toLowerCase() == 'fixed') return false;
 
@@ -919,6 +864,9 @@ class _HomePageState extends State<HomePage> {
                                 ],
                               ),
                             MarkerLayer(
+                              key: ValueKey(
+                                'markers_${filteredPotholes.length}',
+                              ),
                               markers: filteredPotholes
                                   .map(
                                     (p) => Marker(
@@ -1013,7 +961,6 @@ class _HomePageState extends State<HomePage> {
                                     items:
                                         [
                                               'All',
-                                              'Severe',
                                               'High',
                                               'Medium',
                                               'Low',

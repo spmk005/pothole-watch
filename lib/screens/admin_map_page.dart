@@ -62,7 +62,7 @@ class _AdminMapPageState extends State<AdminMapPage> {
             .from('potholes')
             .stream(primaryKey: ['id']),
         builder: (context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
-          if (snapshot.hasError) {
+          if (snapshot.hasError && !snapshot.hasData) {
             return Center(
               child: Text(
                 'Error: ${snapshot.error}',

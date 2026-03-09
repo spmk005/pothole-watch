@@ -376,7 +376,7 @@ class _AdminPageState extends State<AdminPage> {
             child: Center(
               child: Text(
                 'No matching reports found',
-                style: const TextStyle(color: textColorSecondary),
+                style: TextStyle(color: textColorSecondary),
               ),
             ),
           );

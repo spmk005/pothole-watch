@@ -35,6 +35,9 @@ dependencies:
   tflite_flutter: ^0.12.1
   image: ^4.5.3
   path_provider: ^2.1.5
+  permission_handler: ^12.0.1
+  sqflite: ^2.4.2
+  connectivity_plus: ^6.1.4
 
 dev_dependencies:
   flutter_test:
@@ -49,3 +52,6 @@ flutter:
   #assets:
   #  - assets/yolov26_best_float16.tflite
   #  - assets/yolov26_best_float32.tflite
+
+  assets:
+    - assets/models/midas.tflite
